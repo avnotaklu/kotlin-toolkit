@@ -77,7 +77,8 @@ class R2PagerAdapter internal constructor(
                     resource.url,
                     resource.link,
                     initialLocator = locator,
-                    positionCount = resource.positionCount
+                    positionCount = resource.positionCount,
+                    resourcePosition = position
                 )
             }
             is PageResource.EpubFxl -> {

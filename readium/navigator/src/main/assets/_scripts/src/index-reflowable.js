@@ -7,10 +7,12 @@
 // Script used for reflowable resources.
 
 import "./index";
+import { computeLastReadCfi } from "./bridge";
+import { log } from "./utils";
 
 window.readium.isReflowable = true;
 
-document.addEventListener("DOMContentLoaded", function () {
+document.addEventListener("DOMContentLoaded", function() {
   // Setups the `viewport` meta tag to disable zooming.
   let meta = document.createElement("meta");
   meta.setAttribute("name", "viewport");
@@ -19,4 +21,15 @@ document.addEventListener("DOMContentLoaded", function () {
     "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no"
   );
   document.head.appendChild(meta);
+  // computeLastReadCfi()
 });
+
+//
+// let debounceTimer;
+// document.addEventListener("scroll", (event) => {
+//   clearTimeout(debounceTimer);
+//   debounceTimer = setTimeout(function() {
+//     log("scroll")
+//     computeLastReadCfi()
+//   }, 100);
+// });

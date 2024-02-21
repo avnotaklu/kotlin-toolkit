@@ -24,17 +24,26 @@ import android.widget.ListPopupWindow
 import android.widget.PopupWindow
 import android.widget.TextView
 import androidx.annotation.RequiresApi
+import androidx.fragment.app.FragmentActivity
+import androidx.webkit.WebViewAssetLoader
+import com.google.common.util.concurrent.ListenableFuture
+import java.io.File
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import org.json.JSONException
 import org.json.JSONObject
 import org.jsoup.Jsoup
 import org.jsoup.safety.Safelist
 import org.readium.r2.navigator.extensions.optRectF
+import org.readium.r2.navigator.model.DisplayUnit
+import org.readium.r2.navigator.pager.R2EpubPageFragment
+import org.readium.r2.navigator.pager.interfaces.EpubPropsGetter
 import org.readium.r2.shared.InternalReadiumApi
 import org.readium.r2.shared.extensions.optNullableString
 import org.readium.r2.shared.extensions.tryOrLog
@@ -46,6 +55,7 @@ import org.readium.r2.shared.publication.ReadingProgression
 import org.readium.r2.shared.util.Href
 import org.readium.r2.shared.util.use
 import timber.log.Timber
+
 
 @OptIn(ExperimentalDecorator::class)
 open class R2BasicWebView(context: Context, attrs: AttributeSet) : WebView(context, attrs) {
@@ -61,7 +71,13 @@ open class R2BasicWebView(context: Context, attrs: AttributeSet) : WebView(conte
         fun onDragStart(event: DragEvent): Boolean
         fun onDragMove(event: DragEvent): Boolean
         fun onDragEnd(event: DragEvent): Boolean
-        fun onDecorationActivated(id: DecorationId, group: String, rect: RectF, point: PointF): Boolean = false
+        fun onDecorationActivated(
+            id: DecorationId,
+            group: String,
+            rect: RectF,
+            point: PointF
+        ): Boolean = false
+
         fun onProgressionChanged()
         fun onHighlightActivated(id: String)
         fun onHighlightAnnotationMarkActivated(id: String)
@@ -75,10 +91,16 @@ open class R2BasicWebView(context: Context, attrs: AttributeSet) : WebView(conte
 
         @InternalReadiumApi
         fun javascriptInterfacesForResource(link: Link): Map<String, Any?> = emptyMap()
+
         @InternalReadiumApi
         fun shouldOverrideUrlLoading(webView: WebView, request: WebResourceRequest): Boolean = false
+
         @InternalReadiumApi
-        fun shouldInterceptRequest(webView: WebView, request: WebResourceRequest): WebResourceResponse? = null
+        fun shouldInterceptRequest(
+            webView: WebView,
+            request: WebResourceRequest
+        ): WebResourceResponse? = null
+
         @InternalReadiumApi
         fun resourceAtUrl(url: String): Resource? = null
 
@@ -90,13 +112,25 @@ open class R2BasicWebView(context: Context, attrs: AttributeSet) : WebView(conte
          */
         @InternalReadiumApi
         fun goToNextResource(jump: Boolean, animated: Boolean): Boolean = false
+
         @InternalReadiumApi
         fun goToPreviousResource(jump: Boolean, animated: Boolean): Boolean = false
     }
 
+
     var listener: Listener? = null
     internal var preferences: SharedPreferences? = null
     internal var useLegacySettings: Boolean = false
+
+    // modified_avnotaklu
+    lateinit var activity: FragmentActivity
+    lateinit var fragment: R2EpubPageFragment
+    lateinit var propsGetter: EpubPropsGetter
+
+    @Volatile
+    public var cfiFuture = CompletableDeferred<String>()
+    // modified_avnotaklu //
+
 
     var resourceUrl: String? = null
 
@@ -116,42 +150,43 @@ open class R2BasicWebView(context: Context, attrs: AttributeSet) : WebView(conte
     }
 
     /** Computes the current progression in the resource. */
-    val progression: Double get() =
-        if (scrollMode) {
-            val y = scrollY.toDouble()
-            val contentHeight = computeVerticalScrollRange()
+    val progression: Double
+        get() =
+            if (scrollMode) {
+                val y = scrollY.toDouble()
+                val contentHeight = computeVerticalScrollRange()
 
-            var progression = 0.0
-            if (contentHeight > 0) {
-                progression = (y / contentHeight).coerceIn(0.0, 1.0)
+                var progression = 0.0
+                if (contentHeight > 0) {
+                    progression = (y / contentHeight).coerceIn(0.0, 1.0)
+                }
+
+                progression
+            } else {
+                var x = scrollX.toDouble()
+                val pageWidth = computeHorizontalScrollExtent()
+                val contentWidth = computeHorizontalScrollRange()
+
+                val isRtl = (listener?.readingProgression == ReadingProgression.RTL)
+
+                // For RTL, we need to add the equivalent of one page to the x position, otherwise the
+                // progression will be one page off.
+                if (isRtl) {
+                    x += pageWidth
+                }
+
+                var progression = 0.0
+                if (contentWidth > 0) {
+                    progression = (x / contentWidth).coerceIn(0.0, 1.0)
+                }
+                // For RTL, we need to reverse the progression because the web view is always scrolling
+                // from left to right, no matter the reading direction.
+                if (isRtl) {
+                    progression = 1 - progression
+                }
+
+                progression
             }
-
-            progression
-        } else {
-            var x = scrollX.toDouble()
-            val pageWidth = computeHorizontalScrollExtent()
-            val contentWidth = computeHorizontalScrollRange()
-
-            val isRtl = (listener?.readingProgression == ReadingProgression.RTL)
-
-            // For RTL, we need to add the equivalent of one page to the x position, otherwise the
-            // progression will be one page off.
-            if (isRtl) {
-                x += pageWidth
-            }
-
-            var progression = 0.0
-            if (contentWidth > 0) {
-                progression = (x / contentWidth).coerceIn(0.0, 1.0)
-            }
-            // For RTL, we need to reverse the progression because the web view is always scrolling
-            // from left to right, no matter the reading direction.
-            if (isRtl) {
-                progression = 1 - progression
-            }
-
-            progression
-        }
 
     interface OnOverScrolledCallback {
         fun onOverScrolled(scrollX: Int, scrollY: Int, clampedX: Boolean, clampedY: Boolean)
@@ -287,14 +322,72 @@ open class R2BasicWebView(context: Context, attrs: AttributeSet) : WebView(conte
                 scrollLeft(false)
                 true
             }
+
             useLegacySettings && thresholdRange.contains(clientWidth - event.point.x) -> {
                 scrollRight(false)
                 true
             }
+
             else ->
                 runBlocking(uiScope.coroutineContext) { listener?.onTap(event.point) ?: false }
         }
     }
+
+    // modified_avnotaklu
+    @android.webkit.JavascriptInterface
+    fun testWebInterface() {
+        Timber.d("WebInterface", "working")
+    }
+
+    @android.webkit.JavascriptInterface
+    fun getResourcePosition(): Int {
+        return fragment.resourcePosition.toInt()
+    }
+
+    @android.webkit.JavascriptInterface
+    fun getViewportRect(unitString: String): String? {
+        val unit = DisplayUnit.valueOf(unitString)
+        val rect = propsGetter.getViewportRect(unit)
+        return rectToDOMRectJson(rect)
+    }
+
+    @android.webkit.JavascriptInterface
+    fun getFilepath(): String {
+        return propsGetter.getFilePath().split("/").last()
+    }
+
+    fun rectToDOMRectJson(rect: Rect): String? {
+        val jsonObject = JSONObject()
+        try {
+            jsonObject.put("x", rect.left)
+            jsonObject.put("y", rect.top)
+            jsonObject.put("width", rect.width())
+            jsonObject.put("height", rect.height())
+            return jsonObject.toString()
+        } catch (e: JSONException) {
+            Timber.e(e);
+        }
+        return null
+    }
+
+//    val lastReadCfi: MutableStateFlow<String?> = MutableStateFlow(null)
+
+    @android.webkit.JavascriptInterface
+    fun storeLastReadCfi(cfi: String) {
+        Timber.d("WebInterface Got CFI $cfi")
+//        lastReadCfi.value = cfi
+        cfiFuture.complete(cfi)
+        cfiFuture = CompletableDeferred()
+    }
+
+    fun computeNodePosition() {
+        val epubcfi = propsGetter.getEpubCFI()
+        if (epubcfi != null) {
+            runJavaScript("readium.computeNodePosition(\"$epubcfi\");")
+        }
+    }
+
+    // modified_avnotaklu //
 
     /**
      * Called from the JS code when a tap on a decoration is detected.
@@ -457,8 +550,9 @@ open class R2BasicWebView(context: Context, attrs: AttributeSet) : WebView(conte
         val offset: PointF,
         val interactiveElement: String?
     ) {
-        internal val isValid: Boolean get() =
-            !defaultPrevented && (interactiveElement == null)
+        internal val isValid: Boolean
+            get() =
+                !defaultPrevented && (interactiveElement == null)
 
         companion object {
             fun fromJSONObject(obj: JSONObject?): DragEvent? {
@@ -595,16 +689,18 @@ open class R2BasicWebView(context: Context, attrs: AttributeSet) : WebView(conte
             Timber.d("runJavaScript in $filename: $javascript")
         }
 
+
         this.evaluateJavascript(javascript) { result ->
             if (callback != null) callback(result)
         }
     }
 
-    internal suspend fun runJavaScriptSuspend(javascript: String): String = suspendCoroutine { cont ->
-        runJavaScript(javascript) { result ->
-            cont.resume(result)
+    internal suspend fun runJavaScriptSuspend(javascript: String): String =
+        suspendCoroutine { cont ->
+            runJavaScript(javascript) { result ->
+                cont.resume(result)
+            }
         }
-    }
 
     internal fun shouldOverrideUrlLoading(request: WebResourceRequest): Boolean {
         if (resourceUrl == request.url?.toString()) return false
@@ -612,13 +708,34 @@ open class R2BasicWebView(context: Context, attrs: AttributeSet) : WebView(conte
         return listener?.shouldOverrideUrlLoading(this, request) ?: false
     }
 
-    internal fun shouldInterceptRequest(webView: WebView, request: WebResourceRequest): WebResourceResponse? {
+    internal fun shouldInterceptRequest(
+        webView: WebView,
+        request: WebResourceRequest
+    ): WebResourceResponse? {
         // Prevent favicon.ico to be loaded, this was causing a NullPointerException in NanoHttp
         if (!request.isForMainFrame && request.url.path?.endsWith("/favicon.ico") == true) {
             tryOrLog<Unit> {
                 return WebResourceResponse("image/png", null, null)
             }
         }
+
+
+        val internalStorageLoader = WebViewAssetLoader.Builder()
+            .setDomain("readium")
+            .addPathHandler(
+                "/books/",
+                WebViewAssetLoader.InternalStoragePathHandler(
+                    activity,
+                    File((activity as EpubPropsGetter).getFilePath()).parentFile!!
+                )
+            )
+            .build();
+        if (request.url.toString().contains("/books/")) {
+            val responseHandler = internalStorageLoader.shouldInterceptRequest(request.url);
+            return responseHandler;
+        }
+
+
 
         return listener?.shouldInterceptRequest(webView, request)
     }
@@ -641,7 +758,8 @@ open class R2BasicWebView(context: Context, attrs: AttributeSet) : WebView(conte
      * A wrapper for the app-provided custom [ActionMode.Callback] which clears the selection when
      * activating one of the menu items.
      */
-    inner class CallbackWrapper(val callback: ActionMode.Callback) : ActionMode.Callback by callback {
+    inner class CallbackWrapper(val callback: ActionMode.Callback) :
+        ActionMode.Callback by callback {
         override fun onActionItemClicked(mode: ActionMode?, item: MenuItem?): Boolean {
             uiScope.launch { clearFocus() }
             return callback.onActionItemClicked(mode, item)
@@ -654,7 +772,8 @@ open class R2BasicWebView(context: Context, attrs: AttributeSet) : WebView(conte
             ?: return super.startActionMode(callback, type)
 
         val parent = parent ?: return null
-        val wrapper = Callback2Wrapper(customCallback, callback2 = callback as? ActionMode.Callback2)
+        val wrapper =
+            Callback2Wrapper(customCallback, callback2 = callback as? ActionMode.Callback2)
         return parent.startActionModeForChild(this, wrapper, type)
     }
 

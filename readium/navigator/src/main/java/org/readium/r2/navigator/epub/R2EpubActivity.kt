@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.StateFlow
 import org.json.JSONException
 import org.json.JSONObject
 import org.readium.r2.navigator.*
+import org.readium.r2.navigator.model.DisplayUnit
 import org.readium.r2.navigator.pager.R2EpubPageFragment
 import org.readium.r2.navigator.pager.R2PagerAdapter
 import org.readium.r2.navigator.pager.R2ViewPager
@@ -37,7 +38,8 @@ import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.publication.Publication
 import org.readium.r2.shared.publication.ReadingProgression
 
-open class R2EpubActivity : AppCompatActivity(), IR2Activity, IR2Selectable, IR2Highlightable, IR2TTS, CoroutineScope, VisualNavigator, EpubNavigatorFragment.Listener {
+open class R2EpubActivity : AppCompatActivity(), IR2Activity, IR2Selectable, IR2Highlightable,
+    IR2TTS, CoroutineScope, VisualNavigator, EpubNavigatorFragment.Listener {
 
     /**
      * Context of this scope.
@@ -57,14 +59,17 @@ open class R2EpubActivity : AppCompatActivity(), IR2Activity, IR2Selectable, IR2
 
     protected var navigatorDelegate: NavigatorDelegate? = null
 
-    val adapter: R2PagerAdapter get() =
-        resourcePager.adapter as R2PagerAdapter
+    val adapter: R2PagerAdapter
+        get() =
+            resourcePager.adapter as R2PagerAdapter
 
-    override val resourcePager: R2ViewPager get() =
-        navigatorFragment().resourcePager
+    override val resourcePager: R2ViewPager
+        get() =
+            navigatorFragment().resourcePager
 
-    private val currentFragment: R2EpubPageFragment? get() =
-        adapter.mFragments.get(adapter.getItemId(resourcePager.currentItem)) as? R2EpubPageFragment
+    private val currentFragment: R2EpubPageFragment?
+        get() =
+            adapter.mFragments.get(adapter.getItemId(resourcePager.currentItem)) as? R2EpubPageFragment
 
     // For backward compatibility, we expose these properties only through the `R2EpubActivity`.
     val positions: List<Locator> get() = navigatorFragment().positions
@@ -85,10 +90,13 @@ open class R2EpubActivity : AppCompatActivity(), IR2Activity, IR2Selectable, IR2
         preferences = getSharedPreferences("org.readium.r2.settings", Context.MODE_PRIVATE)
 
         publication = intent.getPublication(this)
-        publicationPath = intent.getStringExtra("publicationPath") ?: throw Exception("publicationPath required")
-        publicationFileName = intent.getStringExtra("publicationFileName") ?: throw Exception("publicationFileName required")
+        publicationPath =
+            intent.getStringExtra("publicationPath") ?: throw Exception("publicationPath required")
+        publicationFileName = intent.getStringExtra("publicationFileName")
+            ?: throw Exception("publicationFileName required")
         publicationIdentifier = publication.metadata.identifier ?: publication.metadata.title
-        baseUrl = intent.getStringExtra("baseUrl") ?: throw Exception("Intent extra `baseUrl` is required. Provide the URL returned by Server.addPublication()")
+        baseUrl = intent.getStringExtra("baseUrl")
+            ?: throw Exception("Intent extra `baseUrl` is required. Provide the URL returned by Server.addPublication()")
 
         val initialLocator = intent.getParcelableExtra("locator") as? Locator
 
@@ -97,7 +105,12 @@ open class R2EpubActivity : AppCompatActivity(), IR2Activity, IR2Selectable, IR2
         // previously set factories.
         supportFragmentManager.fragmentFactory = CompositeFragmentFactory(
             supportFragmentManager.fragmentFactory,
-            EpubNavigatorFragment.createFactory(publication, baseUrl = baseUrl, initialLocator = initialLocator, listener = this)
+            EpubNavigatorFragment.createFactory(
+                publication,
+                baseUrl = baseUrl,
+                initialLocator = initialLocator,
+                listener = this
+            )
         )
 
         super.onCreate(savedInstanceState)
@@ -108,10 +121,10 @@ open class R2EpubActivity : AppCompatActivity(), IR2Activity, IR2Selectable, IR2
 
         // Add support for display cutout.
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
-            window.attributes.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            window.attributes.layoutInDisplayCutoutMode =
+                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
         }
     }
-
     override fun finish() {
         setResult(Activity.RESULT_OK, intent)
         super.finish()
@@ -137,24 +150,27 @@ open class R2EpubActivity : AppCompatActivity(), IR2Activity, IR2Selectable, IR2
         if (allowToggleActionBar) {
             if (supportActionBar!!.isShowing) {
                 resourcePager.systemUiVisibility = (
-                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                        or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                        or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                        or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                        or View.SYSTEM_UI_FLAG_FULLSCREEN // hide status bar
-                        or View.SYSTEM_UI_FLAG_IMMERSIVE
-                    )
+                        View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                                or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                                or View.SYSTEM_UI_FLAG_FULLSCREEN // hide status bar
+                                or View.SYSTEM_UI_FLAG_IMMERSIVE
+                        )
             } else {
                 resourcePager.systemUiVisibility = (
-                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                        or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                        or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                    )
+                        View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                                or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                        )
             }
         }
     }
 
-    @Deprecated("Use `presentation.value.readingProgression` instead", replaceWith = ReplaceWith("presentation.value.readingProgression"))
+    @Deprecated(
+        "Use `presentation.value.readingProgression` instead",
+        replaceWith = ReplaceWith("presentation.value.readingProgression")
+    )
     override val readingProgression: ReadingProgression
         get() = navigatorFragment().readingProgression
 
@@ -168,13 +184,13 @@ open class R2EpubActivity : AppCompatActivity(), IR2Activity, IR2Selectable, IR2
 
         if (allowToggleActionBar && supportActionBar!!.isShowing) {
             resourcePager.systemUiVisibility = (
-                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                    or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                    or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                    or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                    or View.SYSTEM_UI_FLAG_FULLSCREEN // hide status bar
-                    or View.SYSTEM_UI_FLAG_IMMERSIVE
-                )
+                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                            or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                            or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                            or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                            or View.SYSTEM_UI_FLAG_FULLSCREEN // hide status bar
+                            or View.SYSTEM_UI_FLAG_IMMERSIVE
+                    )
         }
 
         return true
@@ -255,7 +271,12 @@ open class R2EpubActivity : AppCompatActivity(), IR2Activity, IR2Selectable, IR2
                         val width = getDouble("width")
                         val top = getDouble("top") * metrics.density
                         val height = getDouble("height") * metrics.density
-                        Rect(left.toInt(), top.toInt(), width.toInt() + left.toInt(), top.toInt() + height.toInt())
+                        Rect(
+                            left.toInt(),
+                            top.toInt(),
+                            width.toInt() + left.toInt(),
+                            top.toInt() + height.toInt()
+                        )
                     }
                 } catch (e: JSONException) {
                     null
@@ -286,7 +307,10 @@ open class R2EpubActivity : AppCompatActivity(), IR2Activity, IR2Selectable, IR2
                 put("blue", Color.blue(color))
             }
 
-            currentFragment?.webView?.createHighlight(locator?.toJSON().toString(), colorJson.toString()) {
+            currentFragment?.webView?.createHighlight(
+                locator?.toJSON().toString(),
+                colorJson.toString()
+            ) {
                 val json = JSONObject(it)
                 val id = json.getString("id")
                 callback(

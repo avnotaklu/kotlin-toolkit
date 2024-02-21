@@ -18,11 +18,17 @@ pluginManagement {
     // it to integrate Readium in submodules.
     // See https://github.com/readium/kotlin-toolkit/pull/97
     plugins {
-        id("com.android.application") version ("7.3.1")
-        id("com.android.library") version ("7.3.1")
+        id("com.android.application") version ("8.0.2")
+        id("com.android.library") version ("8.0.2")
+
+        // id("com.android.application") version ("7.3.1")
+        // id("com.android.library") version ("7.3.1")
+
         id("io.github.gradle-nexus.publish-plugin") version ("1.1.0")
         id("org.jetbrains.dokka") version ("1.7.20")
         id("org.jetbrains.kotlin.android") version ("1.7.20")
+        // id("org.jetbrains.kotlin.plugin.serialization") version ("1.7.10")
+        // id("org.jetbrains.kotlin.android") version ("1.9.20")
         id("org.jetbrains.kotlin.plugin.serialization") version ("1.7.10")
         id("org.jlleitschuh.gradle.ktlint") version ("11.0.0")
     }
@@ -39,7 +45,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Readium"
+rootProject.name = "EbookReader"
 
 include(":readium:adapters:pdfium:pdfium-document")
 project(":readium:adapters:pdfium:pdfium-document")
@@ -80,7 +86,7 @@ project(":readium:shared")
 include(":readium:streamer")
 project(":readium:streamer")
     .name = "readium-streamer"
-
-if (System.getenv("JITPACK") == null) {
-    include("test-app")
-}
+//
+//if (System.getenv("JITPACK") == null) {
+//    include("test-app")
+//}

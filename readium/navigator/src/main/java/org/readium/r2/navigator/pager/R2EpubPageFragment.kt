@@ -18,14 +18,19 @@ import android.graphics.PointF
 import android.os.Bundle
 import android.util.DisplayMetrics
 import android.view.*
+import android.webkit.ConsoleMessage
+import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import androidx.core.view.ViewCompat
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.viewModels
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.flowWithLifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.webkit.WebViewClientCompat
 import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.*
@@ -36,13 +41,16 @@ import org.readium.r2.navigator.R2WebView
 import org.readium.r2.navigator.databinding.ViewpagerFragmentEpubBinding
 import org.readium.r2.navigator.epub.EpubNavigatorFragment
 import org.readium.r2.navigator.epub.EpubNavigatorViewModel
+import org.readium.r2.navigator.epub.R2EpubActivity
 import org.readium.r2.navigator.extensions.htmlId
+import org.readium.r2.navigator.pager.interfaces.EpubPropsGetter
 import org.readium.r2.shared.ExperimentalReadiumApi
 import org.readium.r2.shared.InternalReadiumApi
 import org.readium.r2.shared.SCROLL_REF
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.publication.ReadingProgression
+import timber.log.Timber
 
 class R2EpubPageFragment : Fragment() {
 
@@ -56,6 +64,9 @@ class R2EpubPageFragment : Fragment() {
 
     private val positionCount: Long
         get() = requireArguments().getLong("positionCount")
+
+    val resourcePosition: Long
+        get() = requireArguments().getLong("resourcePosition")
 
     var webView: R2WebView? = null
         private set
@@ -129,10 +140,16 @@ class R2EpubPageFragment : Fragment() {
     ): View? {
         _binding = ViewpagerFragmentEpubBinding.inflate(inflater, container, false)
         containerView = binding.root
-        preferences = activity?.getSharedPreferences("org.readium.r2.settings", Context.MODE_PRIVATE)!!
+        preferences =
+            activity?.getSharedPreferences("org.readium.r2.settings", Context.MODE_PRIVATE)!!
 
         val webView = binding.webView
         this.webView = webView
+
+        webView.activity = activity as FragmentActivity
+        webView.fragment = this
+        webView.propsGetter = activity as EpubPropsGetter
+
 
         webView.visibility = View.INVISIBLE
         navigator?.webViewListener?.let { listener ->
@@ -153,6 +170,9 @@ class R2EpubPageFragment : Fragment() {
             @Suppress("DEPRECATION")
             webView.setScrollMode(preferences.getBoolean(SCROLL_REF, false))
         }
+
+
+
         webView.useLegacySettings = viewModel.useLegacySettings
         webView.settings.javaScriptEnabled = true
         webView.isVerticalScrollBarEnabled = false
@@ -163,6 +183,8 @@ class R2EpubPageFragment : Fragment() {
         webView.settings.builtInZoomControls = true
         webView.settings.displayZoomControls = false
         webView.settings.textZoom = textZoom
+        webView.settings.allowFileAccess = true
+        webView.settings.allowContentAccess = true
         webView.resourceUrl = resourceUrl
         webView.setPadding(0, 0, 0, 0)
         webView.addJavascriptInterface(webView, "Android")
@@ -189,6 +211,7 @@ class R2EpubPageFragment : Fragment() {
                             webView.listener?.onPageEnded(endReached)
                         }
                     }
+
                     else -> {
                         if (endReached) {
                             endReached = false
@@ -198,10 +221,20 @@ class R2EpubPageFragment : Fragment() {
                 }
             }
         })
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onConsoleMessage(consoleMessage: ConsoleMessage): Boolean {
+                Timber.d("WebView", consoleMessage.message());
+                return true;
+            }
+        }
 
         webView.webViewClient = object : WebViewClientCompat() {
 
-            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =
+
+            override fun shouldOverrideUrlLoading(
+                view: WebView,
+                request: WebResourceRequest
+            ): Boolean =
                 (webView as? R2BasicWebView)?.shouldOverrideUrlLoading(request) ?: false
 
             override fun shouldOverrideKeyEvent(view: WebView, event: KeyEvent): Boolean {
@@ -221,7 +254,10 @@ class R2EpubPageFragment : Fragment() {
                 }
             }
 
-            override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
+            override fun shouldInterceptRequest(
+                view: WebView,
+                request: WebResourceRequest
+            ): WebResourceResponse? =
                 (webView as? R2BasicWebView)?.shouldInterceptRequest(view, request)
         }
 
@@ -245,18 +281,26 @@ class R2EpubPageFragment : Fragment() {
             webView.listener?.onTap(point)
         }
 
+
         return containerView
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-
+        Timber.d("Testing", "working")
         if (!viewModel.useLegacySettings) {
             val lifecycleOwner = viewLifecycleOwner
+
+//            lifecycleOwner.lifecycleScope.launch {
+//                webView?.lastReadCfi?.collectLatest {
+//                    navigator?.notifyCurrentLocation(it)
+//                }
+//            }
             lifecycleOwner.lifecycleScope.launch {
                 viewModel.isScrollEnabled
                     .flowWithLifecycle(lifecycleOwner.lifecycle)
                     .collectLatest { webView?.scrollModeFlow?.value = it }
+
             }
         }
     }
@@ -323,7 +367,8 @@ class R2EpubPageFragment : Fragment() {
             }
 
             if (!viewModel.isScrollEnabled.value) {
-                val margin = resources.getDimension(R.dimen.r2_navigator_epub_vertical_padding).toInt()
+                val margin =
+                    resources.getDimension(R.dimen.r2_navigator_epub_vertical_padding).toInt()
                 top += margin
                 bottom += margin
             }
@@ -335,11 +380,14 @@ class R2EpubPageFragment : Fragment() {
     internal val paddingTop: Int get() = containerView.paddingTop
     internal val paddingBottom: Int get() = containerView.paddingBottom
 
-    private val isCurrentResource: Boolean get() {
-        val epubNavigator = navigator ?: return false
-        val currentFragment = (epubNavigator.resourcePager.adapter as? R2PagerAdapter)?.getCurrentFragment() as? R2EpubPageFragment ?: return false
-        return tag == currentFragment.tag
-    }
+    private val isCurrentResource: Boolean
+        get() {
+            val epubNavigator = navigator ?: return false
+            val currentFragment =
+                (epubNavigator.resourcePager.adapter as? R2PagerAdapter)?.getCurrentFragment() as? R2EpubPageFragment
+                    ?: return false
+            return tag == currentFragment.tag
+        }
 
     private fun onLoadPage() {
         if (!isLoading) return
@@ -412,6 +460,11 @@ class R2EpubPageFragment : Fragment() {
             }
             webView.setCurrentItem(item, false)
         }
+
+        // modified_avnotaklu
+        (webView as R2BasicWebView).computeNodePosition()
+        // modified_avnotaklu //
+
     }
 
     companion object {
@@ -421,7 +474,10 @@ class R2EpubPageFragment : Fragment() {
             url: String,
             link: Link? = null,
             initialLocator: Locator? = null,
-            positionCount: Int = 0
+            positionCount: Int = 0,
+            // modified_avnotaklu
+            resourcePosition: Int = 0,
+            // modified_avnotaklu //
         ): R2EpubPageFragment =
             R2EpubPageFragment().apply {
                 arguments = Bundle().apply {
@@ -429,6 +485,9 @@ class R2EpubPageFragment : Fragment() {
                     putParcelable("link", link)
                     putParcelable("initialLocator", initialLocator)
                     putLong("positionCount", positionCount.toLong())
+                    // modified_avnotaklu
+                    putLong("resourcePosition", resourcePosition.toLong())
+                    // modified_avnotaklu //
                 }
             }
     }

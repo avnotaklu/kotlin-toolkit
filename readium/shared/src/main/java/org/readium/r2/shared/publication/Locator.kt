@@ -74,6 +74,10 @@ data class Locator(
          */
         operator fun get(key: String): Any? = otherLocations[key]
 
+        // modified_avnotaklu
+        val epubcfi: String get() = otherLocations["epubcfi"] as String
+        // modified_avnotaklu //
+
         companion object {
 
             fun fromJSON(json: JSONObject?): Locations {
