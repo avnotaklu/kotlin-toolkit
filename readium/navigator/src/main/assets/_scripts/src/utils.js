@@ -138,7 +138,7 @@ export function scrollToText(text) {
   return true;
 }
 
-function scrollToRange(range) {
+export function scrollToRange(range) {
   return scrollToRect(range.getBoundingClientRect());
 }
 

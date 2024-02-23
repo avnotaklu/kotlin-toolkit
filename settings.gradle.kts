@@ -16,7 +16,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Readium"
+rootProject.name = "EbookReader"
 
 include(":readium:adapters:pdfium:document")
 project(":readium:adapters:pdfium:document")

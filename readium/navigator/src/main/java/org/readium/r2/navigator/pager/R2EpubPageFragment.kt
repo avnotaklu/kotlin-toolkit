@@ -16,12 +16,15 @@ import android.graphics.PointF
 import android.os.Bundle
 import android.util.DisplayMetrics
 import android.view.*
+import android.webkit.ConsoleMessage
+import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import androidx.core.os.BundleCompat
 import androidx.core.view.ViewCompat
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.flowWithLifecycle
@@ -38,12 +41,14 @@ import org.readium.r2.navigator.databinding.ReadiumNavigatorViewpagerFragmentEpu
 import org.readium.r2.navigator.epub.EpubNavigatorFragment
 import org.readium.r2.navigator.epub.EpubNavigatorViewModel
 import org.readium.r2.navigator.extensions.htmlId
+import org.readium.r2.navigator.pager.interfaces.EpubPropsGetter
 import org.readium.r2.navigator.preferences.ReadingProgression
 import org.readium.r2.shared.ExperimentalReadiumApi
 import org.readium.r2.shared.InternalReadiumApi
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.util.AbsoluteUrl
+import timber.log.Timber
 
 @OptIn(ExperimentalReadiumApi::class)
 internal class R2EpubPageFragment : Fragment() {
@@ -58,6 +63,10 @@ internal class R2EpubPageFragment : Fragment() {
 
     private val positionCount: Long
         get() = requireArguments().getLong("positionCount")
+    // modified_avnotaklu
+    val resourcePosition: Long
+        get() = requireArguments().getLong("resourcePosition")
+    // modified_avnotaklu //
 
     var webView: R2WebView? = null
         private set
@@ -145,6 +154,11 @@ internal class R2EpubPageFragment : Fragment() {
         val webView = binding.webView
         this.webView = webView
 
+        webView.activity = activity as FragmentActivity
+        webView.fragment = this
+        webView.propsGetter = activity as EpubPropsGetter
+
+
         webView.visibility = View.INVISIBLE
         navigator?.webViewListener?.let { listener ->
             webView.listener = listener
@@ -169,6 +183,8 @@ internal class R2EpubPageFragment : Fragment() {
         webView.settings.builtInZoomControls = true
         webView.settings.displayZoomControls = false
         webView.settings.textZoom = textZoom
+        webView.settings.allowFileAccess = true
+        webView.settings.allowContentAccess = true
         webView.resourceUrl = resourceUrl
         webView.setPadding(0, 0, 0, 0)
         webView.addJavascriptInterface(webView, "Android")
@@ -203,6 +219,12 @@ internal class R2EpubPageFragment : Fragment() {
                 }
             }
         })
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onConsoleMessage(consoleMessage: ConsoleMessage): Boolean {
+                Timber.d("WebView", consoleMessage.message());
+                return true;
+            }
+        }
 
         webView.webViewClient = object : WebViewClientCompat() {
 
@@ -430,6 +452,11 @@ internal class R2EpubPageFragment : Fragment() {
             }
             webView.setCurrentItem(item, false)
         }
+
+        // modified_avnotaklu
+        (webView as R2BasicWebView).computeNodePosition()
+        // modified_avnotaklu //
+
     }
 
     companion object {
@@ -439,7 +466,10 @@ internal class R2EpubPageFragment : Fragment() {
             url: AbsoluteUrl,
             link: Link? = null,
             initialLocator: Locator? = null,
-            positionCount: Int = 0
+            positionCount: Int = 0,
+            // modified_avnotaklu
+            resourcePosition: Int = 0,
+            // modified_avnotaklu //
         ): R2EpubPageFragment =
             R2EpubPageFragment().apply {
                 arguments = Bundle().apply {
@@ -447,6 +477,9 @@ internal class R2EpubPageFragment : Fragment() {
                     putParcelable("link", link)
                     putParcelable("initialLocator", initialLocator)
                     putLong("positionCount", positionCount.toLong())
+                    // modified_avnotaklu
+                    putLong("resourcePosition", resourcePosition.toLong())
+                    // modified_avnotaklu //
                 }
             }
     }

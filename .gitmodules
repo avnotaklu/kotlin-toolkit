@@ -1,0 +1,3 @@
+[submodule "readium/navigator/src/main/assets/_scripts/src/epub/epub.js"]
+	path = readium/navigator/src/main/assets/_scripts/src/epub/epub.js
+	url = git@github.com:futurepress/epub.js.git

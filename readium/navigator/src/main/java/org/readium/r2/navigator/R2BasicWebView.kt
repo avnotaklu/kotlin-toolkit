@@ -12,24 +12,38 @@ import android.graphics.PointF
 import android.graphics.Rect
 import android.graphics.RectF
 import android.os.Build
+import android.text.Html
 import android.util.AttributeSet
 import android.view.*
 import android.webkit.URLUtil
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
+import android.widget.ImageButton
+import android.widget.ListPopupWindow
+import android.widget.PopupWindow
+import android.widget.TextView
 import androidx.annotation.RequiresApi
+import androidx.fragment.app.FragmentActivity
+import androidx.webkit.WebViewAssetLoader
+import com.google.common.util.concurrent.ListenableFuture
+import java.io.File
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import org.json.JSONException
 import org.json.JSONObject
 import org.jsoup.Jsoup
 import org.jsoup.safety.Safelist
 import org.readium.r2.navigator.extensions.optRectF
+import org.readium.r2.navigator.model.DisplayUnit
+import org.readium.r2.navigator.pager.R2EpubPageFragment
+import org.readium.r2.navigator.pager.interfaces.EpubPropsGetter
 import org.readium.r2.navigator.input.InputModifier
 import org.readium.r2.navigator.input.Key
 import org.readium.r2.navigator.input.KeyEvent
@@ -111,8 +125,19 @@ internal open class R2BasicWebView(context: Context, attrs: AttributeSet) : WebV
         fun onHighlightAnnotationMarkActivated(id: String) {}
     }
 
+
     var listener: Listener? = null
     internal var preferences: SharedPreferences? = null
+
+    // modified_avnotaklu
+    lateinit var activity: FragmentActivity
+    lateinit var fragment: R2EpubPageFragment
+    lateinit var propsGetter: EpubPropsGetter
+
+    @Volatile
+    public var cfiFuture = CompletableDeferred<String>()
+    // modified_avnotaklu //
+
 
     var resourceUrl: AbsoluteUrl? = null
 
@@ -290,6 +315,62 @@ internal open class R2BasicWebView(context: Context, attrs: AttributeSet) : WebV
 
         return runBlocking(uiScope.coroutineContext) { listener?.onTap(event.point) ?: false }
     }
+
+    // modified_avnotaklu
+    @android.webkit.JavascriptInterface
+    fun testWebInterface() {
+        Timber.d("WebInterface", "working")
+    }
+
+    @android.webkit.JavascriptInterface
+    fun getResourcePosition(): Int {
+        return fragment.resourcePosition.toInt()
+    }
+
+    @android.webkit.JavascriptInterface
+    fun getViewportRect(unitString: String): String? {
+        val unit = DisplayUnit.valueOf(unitString)
+        val rect = propsGetter.getViewportRect(unit)
+        return rectToDOMRectJson(rect)
+    }
+
+    @android.webkit.JavascriptInterface
+    fun getFilepath(): String {
+        return propsGetter.getFilePath().split("/").last()
+    }
+
+    fun rectToDOMRectJson(rect: Rect): String? {
+        val jsonObject = JSONObject()
+        try {
+            jsonObject.put("x", rect.left)
+            jsonObject.put("y", rect.top)
+            jsonObject.put("width", rect.width())
+            jsonObject.put("height", rect.height())
+            return jsonObject.toString()
+        } catch (e: JSONException) {
+            Timber.e(e);
+        }
+        return null
+    }
+
+//    val lastReadCfi: MutableStateFlow<String?> = MutableStateFlow(null)
+
+    @android.webkit.JavascriptInterface
+    fun storeLastReadCfi(cfi: String) {
+        Timber.d("WebInterface Got CFI $cfi")
+//        lastReadCfi.value = cfi
+        cfiFuture.complete(cfi)
+        cfiFuture = CompletableDeferred()
+    }
+
+    fun computeNodePosition() {
+        val epubcfi = propsGetter.getEpubCFI()
+        if (epubcfi != null) {
+            runJavaScript("readium.computeNodePosition(\"$epubcfi\");")
+        }
+    }
+
+    // modified_avnotaklu //
 
     /**
      * Called from the JS code when a tap on a decoration is detected.
@@ -591,6 +672,24 @@ internal open class R2BasicWebView(context: Context, attrs: AttributeSet) : WebV
                 return WebResourceResponse("image/png", null, null)
             }
         }
+
+
+        val internalStorageLoader = WebViewAssetLoader.Builder()
+            .setDomain("readium")
+            .addPathHandler(
+                "/books/",
+                WebViewAssetLoader.InternalStoragePathHandler(
+                    activity,
+                    File((activity as EpubPropsGetter).getFilePath()).parentFile!!
+                )
+            )
+            .build();
+        if (request.url.toString().contains("/books/")) {
+            val responseHandler = internalStorageLoader.shouldInterceptRequest(request.url);
+            return responseHandler;
+        }
+
+
 
         return listener?.shouldInterceptRequest(webView, request)
     }

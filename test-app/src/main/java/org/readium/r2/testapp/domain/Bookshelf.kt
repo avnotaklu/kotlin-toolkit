@@ -25,6 +25,7 @@ import org.readium.r2.streamer.PublicationOpener
 import org.readium.r2.testapp.data.BookRepository
 import org.readium.r2.testapp.data.model.Book
 import org.readium.r2.testapp.utils.tryOrLog
+import org.readium.r3.testapp.domain.ImportError
 import timber.log.Timber
 
 /**

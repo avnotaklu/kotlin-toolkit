@@ -31,6 +31,7 @@ import org.readium.r2.testapp.utils.copyToNewFile
 import org.readium.r2.testapp.utils.extensions.copyToTempFile
 import org.readium.r2.testapp.utils.extensions.moveTo
 import org.readium.r2.testapp.utils.tryOrLog
+import org.readium.r3.testapp.domain.ImportError
 import timber.log.Timber
 
 /**

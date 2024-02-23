@@ -4,6 +4,7 @@
  * available in the top-level LICENSE file of the project.
  */
 
+import com.github.javaparser.utils.Utils.set
 import org.jetbrains.dokka.gradle.DokkaTaskPartial
 
 plugins {

@@ -87,6 +87,9 @@ import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.publication.Publication
 import org.readium.r2.shared.publication.ReadingProgression as PublicationReadingProgression
+import kotlin.coroutines.resume
+import kotlin.coroutines.suspendCoroutine
+import org.readium.r2.shared.extensions.optNullableString
 import org.readium.r2.shared.publication.epub.EpubLayout
 import org.readium.r2.shared.publication.presentation.presentation
 import org.readium.r2.shared.publication.services.positionsByReadingOrder
@@ -95,6 +98,7 @@ import org.readium.r2.shared.util.Url
 import org.readium.r2.shared.util.mediatype.MediaType
 import org.readium.r2.shared.util.resource.Resource
 import org.readium.r2.shared.util.toAbsoluteUrl
+import timber.log.Timber
 
 /**
  * Factory for a [JavascriptInterface] which will be injected in the web views.
@@ -400,7 +404,6 @@ public class EpubNavigatorFragment internal constructor(
         resetResourcePager()
 
         resourcePager.addOnPageChangeListener(object : ViewPager.SimpleOnPageChangeListener() {
-
             override fun onPageSelected(position: Int) {
 //                if (viewModel.layout == EpubLayout.REFLOWABLE) {
 //                    resourcePager.disableTouchEvents = true
@@ -466,12 +469,14 @@ public class EpubNavigatorFragment internal constructor(
             EpubLayout.REFLOWABLE, null -> {
                 R2PagerAdapter(childFragmentManager, resourcesSingle)
             }
+
             EpubLayout.FIXED -> {
                 when (viewModel.dualPageMode) {
                     // FIXME: Properly implement DualPage.AUTO depending on the device orientation.
                     DualPage.OFF, DualPage.AUTO -> {
                         R2PagerAdapter(childFragmentManager, resourcesSingle)
                     }
+
                     DualPage.ON -> {
                         R2PagerAdapter(childFragmentManager, resourcesDouble)
                     }
@@ -706,12 +711,33 @@ public class EpubNavigatorFragment internal constructor(
         val rect = json.optRectF("rect")
             ?.run { adjustedToViewport() }
 
-        return Selection(
-            locator = currentLocator.value.copy(
-                text = Locator.Text.fromJSON(json.optJSONObject("text"))
-            ),
-            rect = rect
-        )
+        // modified_avnotaklu
+        return suspendCoroutine { cont ->
+                webView.runJavaScript(
+                    "readium.computeCfiFromSelection(\"${currentLocator.value.locations.epubcfi}\");"
+                ) { cfi ->
+                    val cfiLocation: Map<String, String> =
+                        (JSONObject(cfi).optNullableString("cfi"))?.let {
+                            mapOf(
+                                "epubcfi" to it
+                            )
+                        } ?: mapOf()
+
+                    cont.resume(
+                        Selection(
+                            locator = currentLocator.value.copy(
+                                text = Locator.Text.fromJSON(json.optJSONObject("text")),
+                                locations = currentLocator.value.locations.copy(
+                                    otherLocations = (currentLocator.value.locations.otherLocations) + cfiLocation
+                                )
+
+                            ),
+                            rect = rect
+                        )
+                    )
+                }
+        }
+        // modified_avnotaklu //
     }
 
     override fun clearSelection() {
@@ -1057,13 +1083,23 @@ public class EpubNavigatorFragment internal constructor(
                 val index = ceil(progression * (positions.size - 1)).toInt()
                 positions.getOrNull(index)
             }
+            evaluateJavascript("readium.computeLastReadCfi()");
+            val newValue = reflowableWebView?.cfiFuture?.await()
+            Timber.tag("Async Call").d(newValue);
+            val cfiLocation: Map<String, String> = newValue?.let {
+                mapOf(
+                    "epubcfi" to it
+                )
+            } ?: mapOf()
 
             val currentLocator = Locator(
                 href = link.url(),
                 mediaType = link.mediaType ?: MediaType.XHTML,
                 title = tableOfContentsTitleByHref[link.href] ?: positionLocator?.title ?: link.title,
                 locations = (positionLocator?.locations ?: Locator.Locations()).copy(
-                    progression = progression
+                    progression = progression,
+                    otherLocations = (positionLocator?.locations?.otherLocations
+                        ?: mapOf()) + cfiLocation
                 ),
                 text = positionLocator?.text ?: Locator.Text()
             )

@@ -4,6 +4,7 @@
  * available in the top-level LICENSE file of the project.
  */
 
+import { computeLastReadCfi } from "./bridge";
 import { handleDecorationClickEvent } from "./decorator";
 import { nearestInteractiveElement } from "./dom";
 
@@ -12,7 +13,7 @@ window.addEventListener("DOMContentLoaded", function () {
   bindDragGesture(document);
 });
 
-function onClick(event) {
+async function onClick(event) {
   if (!window.getSelection().isCollapsed) {
     // There's an on-going selection, the tap will dismiss it so we don't forward it.
     return;

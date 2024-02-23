@@ -4,7 +4,7 @@
  * available in the top-level LICENSE file of the project.
  */
 
-package org.readium.r2.testapp.domain
+package org.readium.r3.testapp.domain
 
 import org.readium.r2.lcp.LcpError
 import org.readium.r2.shared.util.DebugError
@@ -12,6 +12,8 @@ import org.readium.r2.shared.util.Error
 import org.readium.r2.shared.util.file.FileSystemError
 import org.readium.r2.shared.util.http.HttpError
 import org.readium.r2.testapp.R
+import org.readium.r2.testapp.domain.PublicationError
+import org.readium.r2.testapp.domain.toUserError
 import org.readium.r2.testapp.utils.UserError
 
 sealed class ImportError(

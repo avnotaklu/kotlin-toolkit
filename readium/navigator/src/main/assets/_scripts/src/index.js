@@ -23,6 +23,7 @@ import {
 import { findFirstVisibleLocator } from "./dom";
 import { getCurrentSelection } from "./selection";
 import { getDecorations, registerTemplates } from "./decorator";
+import { computeCfiFromSelection, computeLastReadCfi, computeNodePosition } from "./bridge";
 
 // Public API used by the navigator.
 window.readium = {
@@ -37,6 +38,9 @@ window.readium = {
   setCSSProperties: setCSSProperties,
   setProperty: setProperty,
   removeProperty: removeProperty,
+  computeNodePosition: computeNodePosition,
+  computeLastReadCfi: computeLastReadCfi,
+  computeCfiFromSelection: computeCfiFromSelection,
 
   // selection
   getCurrentSelection: getCurrentSelection,

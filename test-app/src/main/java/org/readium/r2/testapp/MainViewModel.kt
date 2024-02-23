@@ -14,8 +14,8 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
 import org.readium.r2.testapp.domain.Bookshelf
-import org.readium.r2.testapp.domain.ImportError
 import org.readium.r2.testapp.utils.EventChannel
+import org.readium.r3.testapp.domain.ImportError
 
 class MainViewModel(
     application: Application

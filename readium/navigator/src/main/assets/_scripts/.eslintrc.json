@@ -15,5 +15,8 @@
     },
     "ignorePatterns": ["src/vendor"],
     "rules": {
+        "no-unused-vars": "off",
+        "no-undef": "off",
+        "no-control-regex": "off"
     }
 }
