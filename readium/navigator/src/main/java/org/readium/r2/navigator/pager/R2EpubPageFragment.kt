@@ -43,6 +43,7 @@ import org.readium.r2.navigator.epub.EpubNavigatorViewModel
 import org.readium.r2.navigator.extensions.htmlId
 import org.readium.r2.navigator.pager.interfaces.EpubPropsGetter
 import org.readium.r2.navigator.preferences.ReadingProgression
+import org.readium.r2.shared.BuildConfig
 import org.readium.r2.shared.ExperimentalReadiumApi
 import org.readium.r2.shared.InternalReadiumApi
 import org.readium.r2.shared.publication.Link
@@ -418,6 +419,14 @@ internal class R2EpubPageFragment : Fragment() {
         readingProgression: ReadingProgression,
         locator: Locator
     ) {
+
+
+        // modified_avnotaklu
+        (webView as R2BasicWebView).computeNodePosition()
+        // modified_avnotaklu //
+
+        if(BuildConfig.DEBUG) return // TODO: run below if above scroll has failed(computing node position also scrolls)
+
         val text = locator.text
         if (text.highlight != null) {
             if (webView.scrollToText(text)) {
@@ -452,11 +461,6 @@ internal class R2EpubPageFragment : Fragment() {
             }
             webView.setCurrentItem(item, false)
         }
-
-        // modified_avnotaklu
-        (webView as R2BasicWebView).computeNodePosition()
-        // modified_avnotaklu //
-
     }
 
     companion object {
