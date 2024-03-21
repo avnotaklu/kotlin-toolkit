@@ -17,7 +17,8 @@ export async function computeLastReadCfi() {
     viewportRect = constructDOMRect(Android.getViewportRect(DisplayUnit.CSS_PX));
 
     let filepath = Android.getFilepath()
-    let epub = ePub("https://readium/books/" + filepath)
+    let encoded_filepath = encodeURIComponent(filepath)
+    let epub = ePub("https://readium/books/" + encoded_filepath)
 
     await epub.opened
     try {
