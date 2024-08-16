@@ -7,16 +7,17 @@
  * LICENSE file present in the project repository where this source code is maintained.
  */
 
+@file:OptIn(InternalReadiumApi::class)
+
 package org.readium.r2.shared.opds
 
 import android.os.Parcelable
-import java.util.*
 import kotlinx.parcelize.Parcelize
 import org.json.JSONObject
+import org.readium.r2.shared.InternalReadiumApi
 import org.readium.r2.shared.JSONable
-import org.readium.r2.shared.extensions.iso8601ToDate
 import org.readium.r2.shared.extensions.optNullableString
-import org.readium.r2.shared.extensions.toIso8601String
+import org.readium.r2.shared.util.Instant
 import org.readium.r2.shared.util.MapCompanion
 import org.readium.r2.shared.util.logging.WarningLogger
 import org.readium.r2.shared.util.logging.log
@@ -32,8 +33,8 @@ import org.readium.r2.shared.util.logging.log
 @Parcelize
 public data class Availability(
     val state: State,
-    val since: Date? = null,
-    val until: Date? = null
+    val since: Instant? = null,
+    val until: Instant? = null
 ) : JSONable, Parcelable {
 
     public enum class State(public val value: String) {
@@ -42,7 +43,7 @@ public data class Availability(
         RESERVED("reserved"),
         READY("ready");
 
-        public companion object : MapCompanion<String, State>(values(), State::value)
+        public companion object : MapCompanion<String, State>(entries.toTypedArray(), State::value)
     }
 
     /**
@@ -50,8 +51,8 @@ public data class Availability(
      */
     override fun toJSON(): JSONObject = JSONObject().apply {
         put("state", state.value)
-        put("since", since?.toIso8601String())
-        put("until", until?.toIso8601String())
+        put("since", since?.toString())
+        put("until", until?.toString())
     }
 
     public companion object {
@@ -69,8 +70,8 @@ public data class Availability(
 
             return Availability(
                 state = state,
-                since = json?.optNullableString("since")?.iso8601ToDate(),
-                until = json?.optNullableString("until")?.iso8601ToDate()
+                since = json?.optNullableString("since")?.let { Instant.parse(it) },
+                until = json?.optNullableString("until")?.let { Instant.parse(it) }
             )
         }
     }

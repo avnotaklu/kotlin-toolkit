@@ -4,8 +4,12 @@
  * available in the top-level LICENSE file of the project.
  */
 
+@file:OptIn(InternalReadiumApi::class)
+
 package org.readium.r2.streamer.parser.epub
 
+import org.readium.r2.shared.DelicateReadiumApi
+import org.readium.r2.shared.InternalReadiumApi
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.util.Url
 import org.readium.r2.shared.util.fromEpubHref
@@ -24,6 +28,7 @@ internal object NcxParser {
     private fun parseNavMapElement(element: ElementNode, filePath: Url): List<Link> =
         element.get("navPoint", Namespaces.NCX).mapNotNull { parseNavPointElement(it, filePath) }
 
+    @OptIn(DelicateReadiumApi::class)
     private fun parsePageListElement(element: ElementNode, filePath: Url): List<Link> =
         element.get("pageTarget", Namespaces.NCX).mapNotNull {
             val href = extractHref(it, filePath)
@@ -35,6 +40,7 @@ internal object NcxParser {
             }
         }
 
+    @OptIn(DelicateReadiumApi::class)
     private fun parseNavPointElement(element: ElementNode, filePath: Url): Link? {
         val title = extractTitle(element)
         val href = extractHref(element, filePath)

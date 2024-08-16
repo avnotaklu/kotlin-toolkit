@@ -4,6 +4,8 @@
  * available in the top-level LICENSE file of the project.
  */
 
+@file:OptIn(InternalReadiumApi::class)
+
 package org.readium.r2.shared.util.zip
 
 import java.io.File
@@ -11,8 +13,12 @@ import java.io.IOException
 import java.util.zip.ZipEntry
 import java.util.zip.ZipException
 import java.util.zip.ZipFile
+import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.readium.r2.shared.InternalReadiumApi
 import org.readium.r2.shared.extensions.readFully
 import org.readium.r2.shared.extensions.tryOrLog
 import org.readium.r2.shared.util.AbsoluteUrl
@@ -121,9 +127,12 @@ internal class FileZipContainer(
 
         private var stream: CountingInputStream? = null
 
-        override suspend fun close() {
-            withContext(Dispatchers.IO) {
-                tryOrLog { stream?.close() }
+        @OptIn(DelicateCoroutinesApi::class)
+        override fun close() {
+            GlobalScope.launch {
+                withContext(Dispatchers.IO) {
+                    tryOrLog { stream?.close() }
+                }
             }
         }
     }
@@ -144,10 +153,13 @@ internal class FileZipContainer(
             }
             ?.let { Entry(url, it) }
 
-    override suspend fun close() {
-        tryOrLog {
-            withContext(Dispatchers.IO) {
-                archive.close()
+    @OptIn(DelicateCoroutinesApi::class)
+    override fun close() {
+        GlobalScope.launch {
+            tryOrLog {
+                withContext(Dispatchers.IO) {
+                    archive.close()
+                }
             }
         }
     }

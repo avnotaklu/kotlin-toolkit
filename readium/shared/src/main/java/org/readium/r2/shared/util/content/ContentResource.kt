@@ -4,6 +4,8 @@
  * available in the top-level LICENSE file of the project.
  */
 
+@file:OptIn(InternalReadiumApi::class)
+
 package org.readium.r2.shared.util.content
 
 import android.content.ContentResolver
@@ -15,6 +17,7 @@ import java.io.InputStream
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import org.readium.r2.shared.InternalReadiumApi
 import org.readium.r2.shared.extensions.*
 import org.readium.r2.shared.util.AbsoluteUrl
 import org.readium.r2.shared.util.DebugError
@@ -44,7 +47,7 @@ public class ContentResource(
 
     override val sourceUrl: AbsoluteUrl? = uri.toUrl() as? AbsoluteUrl
 
-    override suspend fun close() {
+    override fun close() {
     }
 
     override suspend fun properties(): Try<Resource.Properties, ReadError> {
@@ -150,6 +153,8 @@ public class ContentResource(
             failure(ReadError.Access(ContentResolverError.FileNotFound(e)))
         } catch (e: IOException) {
             failure(ReadError.Access(ContentResolverError.IO(e)))
+        } catch (e: SecurityException) {
+            failure(ReadError.Access(ContentResolverError.Forbidden(e)))
         } catch (e: OutOfMemoryError) { // We don't want to catch any Error, only OOM.
             failure(ReadError.OutOfMemory(e))
         }

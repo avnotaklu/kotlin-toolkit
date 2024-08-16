@@ -4,6 +4,8 @@
  * available in the top-level LICENSE file of the project.
  */
 
+@file:OptIn(InternalReadiumApi::class)
+
 package org.readium.r2.shared.util.file
 
 import java.io.File
@@ -11,8 +13,12 @@ import java.io.FileNotFoundException
 import java.io.IOException
 import java.io.RandomAccessFile
 import java.nio.channels.Channels
+import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.readium.r2.shared.InternalReadiumApi
 import org.readium.r2.shared.extensions.*
 import org.readium.r2.shared.util.AbsoluteUrl
 import org.readium.r2.shared.util.DebugError
@@ -55,11 +61,14 @@ public class FileResource(
         return Try.success(properties)
     }
 
-    override suspend fun close() {
-        withContext(Dispatchers.IO) {
-            if (::randomAccessFile.isLazyInitialized) {
-                randomAccessFile.onSuccess {
-                    tryOrLog { it.close() }
+    @OptIn(DelicateCoroutinesApi::class)
+    override fun close() {
+        if (::randomAccessFile.isLazyInitialized) {
+            GlobalScope.launch {
+                withContext(Dispatchers.IO) {
+                    randomAccessFile.onSuccess {
+                        tryOrLog { it.close() }
+                    }
                 }
             }
         }
@@ -99,14 +108,16 @@ public class FileResource(
     }
 
     override suspend fun length(): Try<Long, ReadError> =
-        metadataLength?.let { Try.success(it) }
-            ?: Try.failure(
-                ReadError.UnsupportedOperation(
-                    DebugError("Length not available for file at ${file.path}.")
+        withContext(Dispatchers.IO) {
+            metadataLength?.let { Try.success(it) }
+                ?: Try.failure(
+                    ReadError.UnsupportedOperation(
+                        DebugError("Length not available for file at ${file.path}.")
+                    )
                 )
-            )
+        }
 
-    private val metadataLength: Long? =
+    private val metadataLength: Long? by lazy {
         tryOrNull {
             if (file.isFile) {
                 file.length()
@@ -114,6 +125,7 @@ public class FileResource(
                 null
             }
         }
+    }
 
     private inline fun <T> Try.Companion.catching(closure: () -> T): Try<T, ReadError> =
         try {

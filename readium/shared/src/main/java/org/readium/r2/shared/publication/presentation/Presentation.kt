@@ -6,6 +6,8 @@
  * Use of this source code is governed by a BSD-style license which is detailed in the
  * LICENSE file present in the project repository where this source code is maintained.
  */
+@file:OptIn(InternalReadiumApi::class)
+
 package org.readium.r2.shared.publication.presentation
 
 import android.os.Parcelable
@@ -13,6 +15,7 @@ import kotlinx.parcelize.Parcelize
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import org.json.JSONObject
+import org.readium.r2.shared.InternalReadiumApi
 import org.readium.r2.shared.JSONable
 import org.readium.r2.shared.extensions.optNullableBoolean
 import org.readium.r2.shared.publication.Properties
@@ -114,7 +117,7 @@ public data class Presentation(
         @SerialName("cover")
         COVER("cover");
 
-        public companion object : MapCompanion<String, Fit>(values(), Fit::value) {
+        public companion object : MapCompanion<String, Fit>(entries.toTypedArray(), Fit::value) {
 
             /**
              * Default value for [Fit], if not specified.
@@ -138,7 +141,10 @@ public data class Presentation(
         @SerialName("portrait")
         PORTRAIT("portrait");
 
-        public companion object : MapCompanion<String, Orientation>(values(), Orientation::value) {
+        public companion object : MapCompanion<String, Orientation>(
+            entries.toTypedArray(),
+            Orientation::value
+        ) {
 
             /**
              * Default value for [Orientation], if not specified.
@@ -183,7 +189,10 @@ public data class Presentation(
         @SerialName("scrolled")
         SCROLLED("scrolled");
 
-        public companion object : MapCompanion<String, Overflow>(values(), Overflow::value) {
+        public companion object : MapCompanion<String, Overflow>(
+            entries.toTypedArray(),
+            Overflow::value
+        ) {
 
             /**
              * Default value for [Overflow], if not specified.
@@ -229,7 +238,7 @@ public data class Presentation(
         @SerialName("center")
         CENTER("center");
 
-        public companion object : MapCompanion<String, Page>(values(), Page::value)
+        public companion object : MapCompanion<String, Page>(entries.toTypedArray(), Page::value)
     }
 
     /**
@@ -251,7 +260,10 @@ public data class Presentation(
         @SerialName("landscape")
         LANDSCAPE("landscape");
 
-        public companion object : MapCompanion<String, Spread>(values(), Spread::value) {
+        public companion object : MapCompanion<String, Spread>(
+            entries.toTypedArray(),
+            Spread::value
+        ) {
 
             /**
              * Default value for [Spread], if not specified.

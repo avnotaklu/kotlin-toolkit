@@ -11,7 +11,6 @@ import java.util.UUID
 import kotlinx.coroutines.runBlocking
 import org.readium.r2.shared.util.data.ReadError
 import org.readium.r2.shared.util.getOrElse
-import org.readium.r2.shared.util.isLazyInitialized
 import org.readium.r2.shared.util.resource.Resource
 import org.readium.r2.shared.util.resource.synchronized
 import org.readium.r2.shared.util.toDebugDescription
@@ -61,9 +60,6 @@ internal class ResourceDataProvider(
     }
 
     override fun release() {
-        if (::resource.isLazyInitialized) {
-            error = null
-            runBlocking { resource.close() }
-        }
+        runBlocking { resource.close() }
     }
 }

@@ -4,8 +4,12 @@
  * available in the top-level LICENSE file of the project.
  */
 
+@file:OptIn(InternalReadiumApi::class)
+
 package org.readium.r2.streamer.parser.epub
 
+import org.readium.r2.shared.DelicateReadiumApi
+import org.readium.r2.shared.InternalReadiumApi
 import org.readium.r2.shared.MediaOverlayNode
 import org.readium.r2.shared.MediaOverlays
 import org.readium.r2.shared.util.Url
@@ -25,6 +29,7 @@ internal object SmilParser {
         return parseSeq(body, filePath)?.let { MediaOverlays(it) }
     }
 
+    @OptIn(DelicateReadiumApi::class)
     private fun parseSeq(node: ElementNode, filePath: Url): List<MediaOverlayNode>? {
         val children: MutableList<MediaOverlayNode> = mutableListOf()
         for (child in node.getAll()) {

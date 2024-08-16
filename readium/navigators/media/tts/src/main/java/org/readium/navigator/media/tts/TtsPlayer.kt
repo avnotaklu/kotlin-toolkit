@@ -4,6 +4,8 @@
  * available in the top-level LICENSE file of the project.
  */
 
+@file:OptIn(InternalReadiumApi::class)
+
 package org.readium.navigator.media.tts
 
 import android.media.AudioAttributes
@@ -26,6 +28,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.readium.r2.navigator.preferences.Configurable
 import org.readium.r2.shared.ExperimentalReadiumApi
+import org.readium.r2.shared.InternalReadiumApi
 import org.readium.r2.shared.extensions.tryOrNull
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.util.Error
@@ -193,7 +196,7 @@ internal class TtsPlayer<S : TtsEngine.Settings, P : TtsEngine.Preferences<P>,
         initialPreferences
 
     init {
-        submitPreferences(initialPreferences)
+        submitPreferencesForSure(initialPreferences)
     }
 
     fun play() {
@@ -215,6 +218,7 @@ internal class TtsPlayer<S : TtsEngine.Settings, P : TtsEngine.Preferences<P>,
                 // WORKAROUND to get the media buttons correctly working when an audio player was
                 // running before.
                 fakePlayingAudio()
+                playbackJob?.cancelAndJoin()
                 playIfReadyAndNotPaused()
             }
         }
@@ -321,10 +325,12 @@ internal class TtsPlayer<S : TtsEngine.Settings, P : TtsEngine.Preferences<P>,
         }
 
         coroutineScope.launch {
-            playbackJob?.cancel()
-            playbackJob?.join()
-            utteranceMutable.value = utteranceMutable.value.copy(range = null)
-            playIfReadyAndNotPaused()
+            mutex.withLock {
+                playbackJob?.cancel()
+                playbackJob?.join()
+                utteranceMutable.value = utteranceMutable.value.copy(range = null)
+                playIfReadyAndNotPaused()
+            }
         }
     }
 
@@ -455,6 +461,10 @@ internal class TtsPlayer<S : TtsEngine.Settings, P : TtsEngine.Preferences<P>,
             nextUtterance = contextNow.currentUtterance
         )
         utteranceMutable.value = utteranceWindow.currentUtterance.ttsPlayerUtterance()
+
+        if (playbackMutable.value.state == State.Ended) {
+            playbackMutable.value = playbackMutable.value.copy(state = State.Ready)
+        }
     }
 
     private suspend fun tryLoadNextContext() {
@@ -500,6 +510,7 @@ internal class TtsPlayer<S : TtsEngine.Settings, P : TtsEngine.Preferences<P>,
         playbackMutable.value = playbackMutable.value.copy(
             state = State.Ended
         )
+        playbackJob?.cancel()
     }
 
     private suspend fun playContinuous() {
@@ -554,6 +565,15 @@ internal class TtsPlayer<S : TtsEngine.Settings, P : TtsEngine.Preferences<P>,
     }
 
     override fun submitPreferences(preferences: P) {
+        if (preferences == lastPreferences) {
+            return
+        }
+
+        submitPreferencesForSure(preferences)
+        restartUtterance()
+    }
+
+    private fun submitPreferencesForSure(preferences: P) {
         lastPreferences = preferences
         engineFacade.submitPreferences(preferences)
         contentIterator.language = engineFacade.settings.value.language

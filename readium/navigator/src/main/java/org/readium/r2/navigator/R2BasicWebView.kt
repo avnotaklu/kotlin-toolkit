@@ -4,10 +4,11 @@
  * available in the top-level LICENSE file of the project.
  */
 
+@file:OptIn(InternalReadiumApi::class)
+
 package org.readium.r2.navigator
 
 import android.content.Context
-import android.content.SharedPreferences
 import android.graphics.PointF
 import android.graphics.Rect
 import android.graphics.RectF
@@ -64,13 +65,17 @@ import org.readium.r2.shared.util.toUrl
 import org.readium.r2.shared.util.use
 import timber.log.Timber
 
-@OptIn(ExperimentalDecorator::class, ExperimentalReadiumApi::class)
+@OptIn(ExperimentalReadiumApi::class)
 internal open class R2BasicWebView(context: Context, attrs: AttributeSet) : WebView(context, attrs) {
 
     interface Listener {
         val readingProgression: ReadingProgression
-        fun onResourceLoaded(link: Link?, webView: R2BasicWebView, url: String?) {}
-        fun onPageLoaded() {}
+
+        /** Called when the resource content is loaded in the web view. */
+        fun onResourceLoaded(webView: R2BasicWebView, link: Link) {}
+
+        /** Called when the target page of the resource is loaded in the web view. */
+        fun onPageLoaded(webView: R2BasicWebView, link: Link) {}
         fun onPageChanged(pageIndex: Int, totalPages: Int, url: String) {}
         fun onPageEnded(end: Boolean) {}
         fun onTap(point: PointF): Boolean = false
@@ -80,8 +85,8 @@ internal open class R2BasicWebView(context: Context, attrs: AttributeSet) : WebV
         fun onKey(event: KeyEvent): Boolean = false
         fun onDecorationActivated(id: DecorationId, group: String, rect: RectF, point: PointF): Boolean = false
         fun onProgressionChanged() {}
-        fun goForward(animated: Boolean = false, completion: () -> Unit = {}): Boolean = false
-        fun goBackward(animated: Boolean = false, completion: () -> Unit = {}): Boolean = false
+        fun goForward(animated: Boolean = false): Boolean = false
+        fun goBackward(animated: Boolean = false): Boolean = false
 
         /**
          * Returns the custom [ActionMode.Callback] to be used with the text selection menu.
@@ -127,7 +132,6 @@ internal open class R2BasicWebView(context: Context, attrs: AttributeSet) : WebV
 
 
     var listener: Listener? = null
-    internal var preferences: SharedPreferences? = null
 
     // modified_avnotaklu
     lateinit var activity: FragmentActivity
@@ -209,6 +213,13 @@ internal open class R2BasicWebView(context: Context, attrs: AttributeSet) : WebV
     }
 
     override fun onOverScrolled(scrollX: Int, scrollY: Int, clampedX: Boolean, clampedY: Boolean) {
+        // Workaround addressing a bug in the Android WebView where the viewport is scrolled while
+        // dragging the text selection handles.
+        // See https://github.com/readium/kotlin-toolkit/issues/325
+        if (isSelecting) {
+            return
+        }
+
         if (callback != null) {
             callback?.onOverScrolled(scrollX, scrollY, clampedX, clampedY)
         }
@@ -310,7 +321,7 @@ internal open class R2BasicWebView(context: Context, attrs: AttributeSet) : WebV
         // We ignore taps on interactive element, unless it's an element we handle ourselves such as
         // pop-up footnotes.
         if (event.interactiveElement != null) {
-            return handleFootnote(event.targetElement)
+            return handleFootnote(event.interactiveElement)
         }
 
         return runBlocking(uiScope.coroutineContext) { listener?.onTap(event.point) ?: false }
@@ -581,9 +592,9 @@ internal open class R2BasicWebView(context: Context, attrs: AttributeSet) : WebV
         runJavaScript("readium.scrollToPosition(\"$progression\");")
     }
 
-    suspend fun scrollToText(text: Locator.Text): Boolean {
-        val json = text.toJSON().toString()
-        return runJavaScriptSuspend("readium.scrollToText($json);").toBoolean()
+    suspend fun scrollToLocator(locator: Locator): Boolean {
+        val json = locator.toJSON().toString()
+        return runJavaScriptSuspend("readium.scrollToLocator($json);").toBoolean()
     }
 
     fun setScrollMode(scrollMode: Boolean) {
@@ -657,7 +668,7 @@ internal open class R2BasicWebView(context: Context, attrs: AttributeSet) : WebV
         val requestUrl = request.url.toUrl() ?: return false
 
         // FIXME: I doubt this can work well. hasGesture considers itself unreliable.
-        return if (urlNotToOverrideLoading == requestUrl && request.hasGesture()) {
+        return if (urlNotToOverrideLoading?.isEquivalent(requestUrl) == true && request.hasGesture()) {
             urlNotToOverrideLoading = null
             false
         } else {

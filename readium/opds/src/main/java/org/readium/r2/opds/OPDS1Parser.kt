@@ -7,17 +7,35 @@
  * LICENSE file present in the project repository where this source code is maintained.
  */
 
+@file:OptIn(InternalReadiumApi::class)
+
 package org.readium.r2.opds
 
 import java.net.URL
-import org.joda.time.DateTime
+import org.readium.r2.shared.DelicateReadiumApi
+import org.readium.r2.shared.InternalReadiumApi
 import org.readium.r2.shared.extensions.toList
 import org.readium.r2.shared.extensions.toMap
-import org.readium.r2.shared.opds.*
-import org.readium.r2.shared.publication.*
+import org.readium.r2.shared.opds.Acquisition
+import org.readium.r2.shared.opds.Facet
+import org.readium.r2.shared.opds.Feed
+import org.readium.r2.shared.opds.Group
+import org.readium.r2.shared.opds.ParseData
+import org.readium.r2.shared.opds.Price
+import org.readium.r2.shared.publication.Contributor
+import org.readium.r2.shared.publication.Href
+import org.readium.r2.shared.publication.Link
+import org.readium.r2.shared.publication.LocalizedString
+import org.readium.r2.shared.publication.Manifest
+import org.readium.r2.shared.publication.Metadata
+import org.readium.r2.shared.publication.Properties
+import org.readium.r2.shared.publication.Publication
+import org.readium.r2.shared.publication.PublicationCollection
+import org.readium.r2.shared.publication.Subject
 import org.readium.r2.shared.toJSON
 import org.readium.r2.shared.util.AbsoluteUrl
 import org.readium.r2.shared.util.ErrorException
+import org.readium.r2.shared.util.Instant
 import org.readium.r2.shared.util.Try
 import org.readium.r2.shared.util.Url
 import org.readium.r2.shared.util.http.DefaultHttpClient
@@ -81,15 +99,16 @@ public class OPDS1Parser {
             ReplaceWith("parse(jsonData, url.toUrl()!!)"),
             DeprecationLevel.ERROR
         )
-        public fun parse(jsonData: ByteArray, url: URL): ParseData =
+        public fun parse(xmlData: ByteArray, url: URL): ParseData =
             throw NotImplementedError()
 
+        @OptIn(DelicateReadiumApi::class)
         private fun parseFeed(root: ElementNode, url: Url): Feed {
             val feedTitle = root.getFirst("title", Namespaces.Atom)?.text
                 ?: throw Exception(OPDSParserError.MissingTitle.name)
             val feed = Feed.Builder(feedTitle, 1, url)
             val tmpDate = root.getFirst("updated", Namespaces.Atom)?.text
-            feed.metadata.modified = tmpDate?.let { DateTime(it).toDate() }
+            feed.metadata.modified = tmpDate?.let { Instant.parse(it) }
 
             val totalResults = root.getFirst("TotalResults", Namespaces.Search)?.text
             totalResults?.let {
@@ -256,6 +275,7 @@ public class OPDS1Parser {
             }.mapFailure { ErrorException(it) }
         }
 
+        @OptIn(DelicateReadiumApi::class)
         private fun parseEntry(entry: ElementNode, baseUrl: Url): Publication? {
             // A title is mandatory
             val title = entry.getFirst("title", Namespaces.Atom)?.text
@@ -310,10 +330,12 @@ public class OPDS1Parser {
                     localizedTitle = LocalizedString(title),
 
                     modified = entry.getFirst("updated", Namespaces.Atom)
-                        ?.let { DateTime(it.text).toDate() },
+                        ?.text
+                        ?.let { Instant.parse(it) },
 
                     published = entry.getFirst("published", Namespaces.Atom)
-                        ?. let { DateTime(it.text).toDate() },
+                        ?.text
+                        ?.let { Instant.parse(it) },
 
                     languages = entry.get("language", Namespaces.Dcterms)
                         .mapNotNull { it.text },

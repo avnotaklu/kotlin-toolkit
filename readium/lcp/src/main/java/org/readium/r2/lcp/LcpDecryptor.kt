@@ -7,17 +7,22 @@
  * LICENSE file present in the project repository where this source code is maintained.
  */
 
+@file:OptIn(InternalReadiumApi::class)
+
 package org.readium.r2.lcp
 
+import org.readium.r2.shared.InternalReadiumApi
 import org.readium.r2.shared.extensions.coerceFirstNonNegative
 import org.readium.r2.shared.extensions.inflate
 import org.readium.r2.shared.extensions.requireLengthFitInt
 import org.readium.r2.shared.publication.encryption.Encryption
 import org.readium.r2.shared.util.DebugError
+import org.readium.r2.shared.util.ThrowableError
 import org.readium.r2.shared.util.Try
 import org.readium.r2.shared.util.Url
 import org.readium.r2.shared.util.data.ReadError
 import org.readium.r2.shared.util.flatMap
+import org.readium.r2.shared.util.getEquivalent
 import org.readium.r2.shared.util.getOrElse
 import org.readium.r2.shared.util.resource.FailureResource
 import org.readium.r2.shared.util.resource.Resource
@@ -34,7 +39,7 @@ internal class LcpDecryptor(
 
     fun transform(url: Url, resource: Resource): Resource {
         return resource.flatMap {
-            val encryption = encryptionData[url]
+            val encryption = encryptionData.getEquivalent(url)
 
             // Checks if the resource is encrypted and whether the encryption schemes of the resource
             // and the DRM license are the same.
@@ -266,11 +271,27 @@ private suspend fun LcpLicense.decryptFully(
 
         // Removes the padding.
         val padding = bytes.last().toInt()
+        if (padding !in bytes.indices) {
+            return Try.failure(
+                ReadError.Decoding(
+                    DebugError(
+                        "The padding length of the encrypted resource is incorrect: $padding / ${bytes.size}"
+                    )
+                )
+            )
+        }
         bytes = bytes.copyOfRange(0, bytes.size - padding)
 
-        // If the ressource was compressed using deflate, inflates it.
+        // If the resource was compressed using deflate, inflates it.
         if (isDeflated) {
             bytes = bytes.inflate(nowrap = true)
+                .getOrElse {
+                    return Try.failure(
+                        ReadError.Decoding(
+                            DebugError("Cannot deflate the decrypted resource", ThrowableError(it))
+                        )
+                    )
+                }
         }
 
         Try.success(bytes)

@@ -1,3 +1,5 @@
+@file:OptIn(InternalReadiumApi::class)
+
 package org.readium.r2.shared.util
 
 import android.net.Uri
@@ -11,6 +13,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.readium.r2.shared.DelicateReadiumApi
+import org.readium.r2.shared.InternalReadiumApi
 import org.readium.r2.shared.util.Url.Query
 import org.readium.r2.shared.util.Url.QueryParameter
 import org.robolectric.RobolectricTestRunner
@@ -395,5 +398,54 @@ class UrlTest {
         assertEquals(params.allNamed("fruit"), listOf("banana"))
         assertEquals(params.allNamed("empty"), emptyList<String>())
         assertEquals(params.allNamed("not-found"), emptyList<String>())
+    }
+
+    @Test
+    fun normalize() {
+        // Scheme is lower case.
+        assertEquals(
+            "http://example.com",
+            Url("HTTP://example.com")!!.normalize().toString()
+        )
+
+        // Percent encoding of path is normalized.
+        assertEquals(
+            "http://example.com/c'est%20valide",
+            Url("http://example.com/c%27est%20valide")!!.normalize().toString()
+        )
+        assertEquals(
+            "c'est%20valide",
+            Url("c%27est%20valide")!!.normalize().toString()
+        )
+
+        // Relative paths are resolved.
+        assertEquals(
+            "http://example.com/foo/baz",
+            Url("http://example.com/foo/./bar//../baz")!!.normalize().toString()
+        )
+        assertEquals(
+            "foo/baz",
+            Url("foo/./bar//../baz")!!.normalize().toString()
+        )
+        assertEquals(
+            "../baz",
+            Url("foo/./bar/../../../baz")!!.normalize().toString()
+        )
+
+        // Trailing slash is kept.
+        assertEquals(
+            "http://example.com/foo/",
+            Url("http://example.com/foo/")!!.normalize().toString()
+        )
+        assertEquals(
+            "foo/",
+            Url("foo/")!!.normalize().toString()
+        )
+
+        // The other components are left as-is.
+        assertEquals(
+            "http://user:password@example.com:443/foo?b=b&a=a#fragment",
+            Url("http://user:password@example.com:443/foo?b=b&a=a#fragment")!!.normalize().toString()
+        )
     }
 }

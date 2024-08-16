@@ -4,10 +4,10 @@
  * available in the top-level LICENSE file of the project.
  */
 
+@file:OptIn(InternalReadiumApi::class)
+
 package org.readium.r2.navigator.image
 
-import android.content.Context
-import android.content.SharedPreferences
 import android.graphics.PointF
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -41,6 +41,7 @@ import org.readium.r2.navigator.preferences.ReadingProgression
 import org.readium.r2.navigator.util.createFragmentFactory
 import org.readium.r2.shared.DelicateReadiumApi
 import org.readium.r2.shared.ExperimentalReadiumApi
+import org.readium.r2.shared.InternalReadiumApi
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.publication.Publication
@@ -64,8 +65,6 @@ public class ImageNavigatorFragment private constructor(
 
     internal lateinit var positions: List<Locator>
     internal lateinit var resourcePager: R2ViewPager
-
-    internal lateinit var preferences: SharedPreferences
 
     internal lateinit var adapter: R2PagerAdapter
     private lateinit var currentActivity: FragmentActivity
@@ -102,10 +101,6 @@ public class ImageNavigatorFragment private constructor(
         _binding = ReadiumNavigatorViewpagerBinding.inflate(inflater, container, false)
         val view = binding.root
 
-        preferences = requireContext().getSharedPreferences(
-            "org.readium.r2.settings",
-            Context.MODE_PRIVATE
-        )
         resourcePager = binding.resourcePager
         resourcePager.publicationType = R2ViewPager.PublicationType.CBZ
 
@@ -191,7 +186,7 @@ public class ImageNavigatorFragment private constructor(
         _currentLocator.value = locator
     }
 
-    override fun go(locator: Locator, animated: Boolean, completion: () -> Unit): Boolean {
+    override fun go(locator: Locator, animated: Boolean): Boolean {
         @Suppress("NAME_SHADOWING")
         val locator = publication.normalizeLocator(locator)
 
@@ -205,12 +200,12 @@ public class ImageNavigatorFragment private constructor(
         return true
     }
 
-    override fun go(link: Link, animated: Boolean, completion: () -> Unit): Boolean {
+    override fun go(link: Link, animated: Boolean): Boolean {
         val locator = publication.locatorFromLink(link) ?: return false
-        return go(locator, animated, completion)
+        return go(locator, animated)
     }
 
-    override fun goForward(animated: Boolean, completion: () -> Unit): Boolean {
+    override fun goForward(animated: Boolean): Boolean {
         val current = resourcePager.currentItem
         if (requireActivity().layoutDirectionIsRTL()) {
             // The view has RTL layout
@@ -224,7 +219,7 @@ public class ImageNavigatorFragment private constructor(
         return current != resourcePager.currentItem
     }
 
-    override fun goBackward(animated: Boolean, completion: () -> Unit): Boolean {
+    override fun goBackward(animated: Boolean): Boolean {
         val current = resourcePager.currentItem
         if (requireActivity().layoutDirectionIsRTL()) {
             // The view has RTL layout
@@ -245,12 +240,12 @@ public class ImageNavigatorFragment private constructor(
 
     @Suppress("DEPRECATION")
     @Deprecated(
-        "Use `presentation.value.readingProgression` instead",
-        replaceWith = ReplaceWith("presentation.value.readingProgression"),
+        "Use `overflow.value.readingProgression` instead",
+        replaceWith = ReplaceWith("overflow.value.readingProgression"),
         level = DeprecationLevel.ERROR
     )
     override val readingProgression: PublicationReadingProgression =
-        publication.metadata.effectiveReadingProgression
+        throw NotImplementedError()
 
     @ExperimentalReadiumApi
     override val overflow: StateFlow<OverflowableNavigator.Overflow> =

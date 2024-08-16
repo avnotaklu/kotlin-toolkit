@@ -4,6 +4,8 @@
  * available in the top-level LICENSE file of the project.
  */
 
+@file:OptIn(InternalReadiumApi::class)
+
 package org.readium.navigator.media.tts
 
 import androidx.media3.common.Player
@@ -17,6 +19,7 @@ import org.readium.r2.navigator.extensions.normalizeLocator
 import org.readium.r2.navigator.preferences.Configurable
 import org.readium.r2.shared.DelicateReadiumApi
 import org.readium.r2.shared.ExperimentalReadiumApi
+import org.readium.r2.shared.InternalReadiumApi
 import org.readium.r2.shared.extensions.combineStateIn
 import org.readium.r2.shared.extensions.mapStateIn
 import org.readium.r2.shared.publication.Link
@@ -73,13 +76,13 @@ public class TtsNavigator<S : TtsEngine.Settings, P : TtsEngine.Preferences<P>,
         ) : TextAwareMediaNavigator.ReadingOrder.Item
     }
 
-    public sealed class State {
+    public sealed interface State {
 
-        public object Ready : MediaNavigator.State.Ready
+        public data object Ready : State, MediaNavigator.State.Ready
 
-        public object Ended : MediaNavigator.State.Ended
+        public data object Ended : State, MediaNavigator.State.Ended
 
-        public data class Failure(val error: Error) : MediaNavigator.State.Failure
+        public data class Failure(val error: Error) : State, MediaNavigator.State.Failure
     }
 
     public sealed class Error(
@@ -87,10 +90,10 @@ public class TtsNavigator<S : TtsEngine.Settings, P : TtsEngine.Preferences<P>,
         override val cause: org.readium.r2.shared.util.Error?
     ) : org.readium.r2.shared.util.Error {
 
-        public class EngineError<E : TtsEngine.Error> (override val cause: E) :
+        public data class EngineError<E : TtsEngine.Error> (override val cause: E) :
             Error("An error occurred in the TTS engine.", cause)
 
-        public class ContentError(cause: org.readium.r2.shared.util.Error) :
+        public data class ContentError(override val cause: org.readium.r2.shared.util.Error) :
             Error("An error occurred while trying to read publication content.", cause)
     }
 
@@ -152,14 +155,14 @@ public class TtsNavigator<S : TtsEngine.Settings, P : TtsEngine.Preferences<P>,
     override val currentLocator: StateFlow<Locator> =
         location.mapStateIn(coroutineScope) { it.tokenLocator ?: it.utteranceLocator }
 
-    override fun go(locator: Locator, animated: Boolean, completion: () -> Unit): Boolean {
+    override fun go(locator: Locator, animated: Boolean): Boolean {
         player.go(publication.normalizeLocator(locator))
         return true
     }
 
-    override fun go(link: Link, animated: Boolean, completion: () -> Unit): Boolean {
+    override fun go(link: Link, animated: Boolean): Boolean {
         val locator = publication.locatorFromLink(link) ?: return false
-        return go(locator, animated, completion)
+        return go(locator, animated)
     }
 
     override val settings: StateFlow<S> =
@@ -167,19 +170,18 @@ public class TtsNavigator<S : TtsEngine.Settings, P : TtsEngine.Preferences<P>,
 
     override fun submitPreferences(preferences: P) {
         player.submitPreferences(preferences)
-        player.restartUtterance()
     }
 
     private fun navigatorPlayback(playback: TtsPlayer.Playback, utterance: TtsPlayer.Utterance) =
         Playback(
-            state = playback.state.toState(),
+            state = playback.state.toState() as MediaNavigator.State,
             playWhenReady = playback.playWhenReady,
             index = utterance.position.resourceIndex,
             utterance = utterance.text,
             range = utterance.range
         )
 
-    private fun TtsPlayer.State.toState() =
+    private fun TtsPlayer.State.toState(): State =
         when (this) {
             TtsPlayer.State.Ready -> State.Ready
             TtsPlayer.State.Ended -> State.Ended

@@ -4,11 +4,13 @@
  * available in the top-level LICENSE file of the project.
  */
 
+@file:OptIn(InternalReadiumApi::class)
+
 package org.readium.r2.navigator.epub
 
 import androidx.fragment.app.FragmentFactory
-import org.readium.r2.navigator.ExperimentalDecorator
 import org.readium.r2.shared.ExperimentalReadiumApi
+import org.readium.r2.shared.InternalReadiumApi
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.publication.Publication
@@ -52,7 +54,6 @@ public class EpubNavigatorFactory(
      * pagination.
      * @param configuration Additional configuration.
      */
-    @OptIn(ExperimentalDecorator::class)
     public fun createFragmentFactory(
         initialLocator: Locator?,
         readingOrder: List<Link>? = null,

@@ -4,10 +4,11 @@
  * available in the top-level LICENSE file of the project.
  */
 
+@file:OptIn(InternalReadiumApi::class)
+
 package org.readium.adapter.exoplayer.audio
 
 import android.app.Application
-import androidx.media3.datasource.DataSource
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import org.readium.navigator.media.audio.AudioEngineProvider
@@ -15,6 +16,7 @@ import org.readium.navigator.media.common.DefaultMediaMetadataProvider
 import org.readium.navigator.media.common.MediaMetadataProvider
 import org.readium.r2.navigator.extensions.time
 import org.readium.r2.shared.ExperimentalReadiumApi
+import org.readium.r2.shared.InternalReadiumApi
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.publication.Publication
 import org.readium.r2.shared.publication.indexOfFirstWithHref
@@ -25,12 +27,15 @@ import org.readium.r2.shared.util.Try
  *
  * Provide [ExoPlayerDefaults] to customize the default values that will be used by
  * the navigator for some preferences.
+ *
+ * Pass an [ExoPlayerCacheProvider] to enable caching of remote resources.
  */
 @ExperimentalReadiumApi
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 public class ExoPlayerEngineProvider(
     private val application: Application,
     private val metadataProvider: MediaMetadataProvider = DefaultMediaMetadataProvider(),
+    private val cacheProvider: ExoPlayerCacheProvider? = null,
     private val defaults: ExoPlayerDefaults = ExoPlayerDefaults(),
     private val configuration: ExoPlayerEngine.Configuration = ExoPlayerEngine.Configuration()
 ) : AudioEngineProvider<ExoPlayerSettings, ExoPlayerPreferences, ExoPlayerPreferencesEditor> {
@@ -42,7 +47,9 @@ public class ExoPlayerEngineProvider(
     ): Try<ExoPlayerEngine, Nothing> {
         val metadataFactory = metadataProvider.createMetadataFactory(publication)
         val settingsResolver = ExoPlayerSettingsResolver(defaults)
-        val dataSourceFactory: DataSource.Factory = ExoPlayerDataSource.Factory(publication)
+        val dataSourceFactory = cacheProvider
+            ?.createCacheDataSourceFactory(publication)
+            ?: ExoPlayerDataSource.Factory(publication)
         val initialIndex = publication.readingOrder.indexOfFirstWithHref(initialLocator.href) ?: 0
         val initialPosition = initialLocator.locations.time ?: Duration.ZERO
         val playlist = ExoPlayerEngine.Playlist(

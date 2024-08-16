@@ -4,12 +4,84 @@ All notable changes to this project will be documented in this file. Take a look
 
 **Warning:** Features marked as *experimental* may change or be removed in a future release without notice. Use with caution.
 
-## [Unreleased]
+<!-- ## [Unreleased] -->
+
+## [3.0.0-beta.2]
 
 ### Added
 
-* The new `HyperlinkNavigator.shouldFollowInternalLink(Link, LinkContext?)` allows you to handle footnotes according to your preference.
+#### Navigator
+
+* Added `ExoPlayerDataSourceProvider` to implement resource caching with the media3 audio navigator. 
+
+#### LCP
+
+* A new `LcpService.retrieveLicenseDocument()` API can be used to read the LCPL embedded in a ZIP package.
+
+### Changed
+
+#### Navigator
+
+* EPUB: The `scroll` preference is now forced to `true` when rendering vertical text (e.g. CJK vertical). [See this discussion for the rationale](https://github.com/readium/swift-toolkit/discussions/370).
+
+### Fixed
+
+#### Shared
+
+* Fixed concurrent access when streaming a ZIP container.
+
+#### Navigator
+
+* Optimized scrolling to an EPUB text-based locator if it contains a CSS selector.
+* Fixed applying the PSPDFKit reading progression preference on configuration changes.
+
+
+## [3.0.0-beta.1]
+
+### Deprecated
+
+#### Navigator
+
+* All the `completion` parameters of the `Navigator` APIs are removed.
+
+### Changed
+
+* All the APIs using or returning a `Date` objects are now using a custom `Instant` type. 
+
+#### Shared
+
+* The `Link` property key for archive-based publication assets (e.g. an EPUB/ZIP) is now `https://readium.org/webpub-manifest/properties#archive` instead of `archive`.
+
+#### LCP
+
+* [#493](https://github.com/readium/kotlin-toolkit/discussions/493) The LCP module does not require the Bluetooth permissions anymore to derive the device name.
+
+### Fixed
+
+#### Navigator
+
+* [#325](https://github.com/readium/kotlin-toolkit/issues/325) Top EPUB selections no longer break when dragging the selection handles.
+* Fixed applying preferences while the EPUB navigator fragment is being recreated.
+
+
+## [3.0.0-alpha.2]
+
+### Added
+
+#### Navigator
+
+* The new `HyperlinkNavigator.Listener.shouldFollowInternalLink(Link, LinkContext?)` allows you to handle footnotes according to your preference.
     * By default, the navigator now moves to the footnote content instead of displaying a pop-up as it did in version 2.x.
+
+#### LCP
+
+* You can use `LcpService.injectLicenseDocument()` to insert an LCPL into a package, if you downloaded it manually instead of using `LcpService.acquirePublication()`.
+
+### Deprecated
+
+#### Shared
+
+* The `DownloadManager` introduced in version 3.0.0-alpha.1 has been removed due to the Android Download Manager introducing unnecessary complexities in the toolkit. Instead, we chose to enable apps to manually handle an LCP download with `LcpService.injectLicenseDocument()`.
 
 
 ## [3.0.0-alpha.1]
@@ -73,6 +145,15 @@ All notable changes to this project will be documented in this file. Take a look
 #### Navigator
 
 * EPUB external links are no longer handled by the navigator. You need to open the link in your own Web View or Chrome Custom Tab.
+
+
+## [2.4.1]
+
+### Added
+
+#### LCP
+
+* [#509](https://github.com/readium/kotlin-toolkit/issues/509) Support for the new 2.x LCP Profiles.
 
 
 ## [2.4.0]
@@ -791,5 +872,9 @@ progression. Now if no reading progression is set, the `effectiveReadingProgress
 [2.2.1]: https://github.com/readium/kotlin-toolkit/compare/2.2.0...2.2.1
 [2.3.0]: https://github.com/readium/kotlin-toolkit/compare/2.2.1...2.3.0
 [2.4.0]: https://github.com/readium/kotlin-toolkit/compare/2.3.0...2.4.0
-[3.0.0-alpha.1]: https://github.com/readium/kotlin-toolkit/compare/2.4.0...3.0.0-alpha.1
+[2.4.1]: https://github.com/readium/kotlin-toolkit/compare/2.4.0...2.4.1
+[3.0.0-alpha.1]: https://github.com/readium/kotlin-toolkit/compare/2.4.1...3.0.0-alpha.1
+[3.0.0-alpha.2]: https://github.com/readium/kotlin-toolkit/compare/3.0.0-alpha.1...3.0.0-alpha.2
+[3.0.0-beta.1]: https://github.com/readium/kotlin-toolkit/compare/3.0.0-alpha.2...3.0.0-beta.1
+[3.0.0-beta.2]: https://github.com/readium/kotlin-toolkit/compare/3.0.0-beta.1...3.0.0-beta.2
 

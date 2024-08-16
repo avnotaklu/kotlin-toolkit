@@ -4,8 +4,12 @@
  * available in the top-level LICENSE file of the project.
  */
 
+@file:OptIn(InternalReadiumApi::class)
+
 package org.readium.r2.streamer.parser.epub
 
+import org.readium.r2.shared.DelicateReadiumApi
+import org.readium.r2.shared.InternalReadiumApi
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.util.Url
 import org.readium.r2.shared.util.fromEpubHref
@@ -55,6 +59,7 @@ internal object NavigationDocumentParser {
     private fun parseOlElement(element: ElementNode, filePath: Url): List<Link> =
         element.get("li", Namespaces.XHTML).mapNotNull { parseLiElement(it, filePath) }
 
+    @OptIn(DelicateReadiumApi::class)
     private fun parseLiElement(element: ElementNode, filePath: Url): Link? {
         val first = element.getAll().firstOrNull() ?: return null // should be <a>,  <span>, or <ol>
         val title = if (first.name == "ol") {

@@ -4,9 +4,12 @@
  * available in the top-level LICENSE file of the project.
  */
 
+@file:OptIn(InternalReadiumApi::class)
+
 package org.readium.r2.shared.util.archive
 
 import org.json.JSONObject
+import org.readium.r2.shared.InternalReadiumApi
 import org.readium.r2.shared.JSONable
 import org.readium.r2.shared.extensions.optNullableBoolean
 import org.readium.r2.shared.extensions.optNullableLong
@@ -48,7 +51,7 @@ public data class ArchiveProperties(
     }
 }
 
-private const val ARCHIVE_KEY = "archive"
+private const val ARCHIVE_KEY = "https://readium.org/webpub-manifest/properties#archive"
 
 public val Resource.Properties.archive: ArchiveProperties?
     get() = (this[ARCHIVE_KEY] as? Map<*, *>)

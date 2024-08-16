@@ -7,15 +7,15 @@
  * LICENSE file present in the project repository where this source code is maintained.
  */
 
-@file:OptIn(ExperimentalReadiumApi::class)
+@file:OptIn(ExperimentalReadiumApi::class, InternalReadiumApi::class)
 
 package org.readium.r2.opds
 
 import java.net.URL
-import org.joda.time.DateTime
 import org.json.JSONArray
 import org.json.JSONObject
 import org.readium.r2.shared.ExperimentalReadiumApi
+import org.readium.r2.shared.InternalReadiumApi
 import org.readium.r2.shared.opds.Facet
 import org.readium.r2.shared.opds.Feed
 import org.readium.r2.shared.opds.Group
@@ -27,6 +27,7 @@ import org.readium.r2.shared.publication.Publication
 import org.readium.r2.shared.publication.normalizeHrefsToBase
 import org.readium.r2.shared.util.AbsoluteUrl
 import org.readium.r2.shared.util.ErrorException
+import org.readium.r2.shared.util.Instant
 import org.readium.r2.shared.util.Try
 import org.readium.r2.shared.util.Url
 import org.readium.r2.shared.util.http.DefaultHttpClient
@@ -174,7 +175,7 @@ public class OPDS2Parser {
             }
             if (metadataDict.has("modified")) {
                 metadataDict.get("modified").let {
-                    opdsMetadata.modified = DateTime(it.toString()).toDate()
+                    opdsMetadata.modified = Instant.parse(it.toString())
                 }
             }
             if (metadataDict.has("@type")) {

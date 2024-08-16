@@ -7,11 +7,11 @@
  * LICENSE file present in the project repository where this source code is maintained.
  */
 
+@file:OptIn(InternalReadiumApi::class)
+
 package org.readium.r2.navigator.pager
 
 import android.annotation.SuppressLint
-import android.content.Context
-import android.content.SharedPreferences
 import android.graphics.PointF
 import android.os.Bundle
 import android.util.DisplayMetrics
@@ -23,6 +23,7 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import androidx.core.os.BundleCompat
 import androidx.core.view.ViewCompat
+import androidx.core.view.postDelayed
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.viewModels
@@ -31,6 +32,10 @@ import androidx.lifecycle.flowWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.webkit.WebViewClientCompat
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
+import kotlin.coroutines.resume
+import kotlin.coroutines.suspendCoroutine
 import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -73,7 +78,6 @@ internal class R2EpubPageFragment : Fragment() {
         private set
 
     private lateinit var containerView: View
-    private lateinit var preferences: SharedPreferences
     private val viewModel: EpubNavigatorViewModel by viewModels(
         ownerProducer = { requireParentFragment() }
     )
@@ -147,10 +151,6 @@ internal class R2EpubPageFragment : Fragment() {
     ): View {
         _binding = ReadiumNavigatorViewpagerFragmentEpubBinding.inflate(inflater, container, false)
         containerView = binding.root
-        preferences = activity?.getSharedPreferences(
-            "org.readium.r2.settings",
-            Context.MODE_PRIVATE
-        )!!
 
         val webView = binding.webView
         this.webView = webView
@@ -173,7 +173,6 @@ internal class R2EpubPageFragment : Fragment() {
                 }
             }
         }
-        webView.preferences = preferences
 
         webView.settings.javaScriptEnabled = true
         webView.isVerticalScrollBarEnabled = false
@@ -240,11 +239,13 @@ internal class R2EpubPageFragment : Fragment() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
 
-                webView.listener?.onResourceLoaded(link, webView, url)
+                onPageFinished()
 
-                // To make sure the page is properly laid out before jumping to the target locator,
-                // we execute a dummy JavaScript and wait for the callback result.
-                webView.evaluateJavascript("true") {
+                link?.let {
+                    webView.listener?.onResourceLoaded(webView, it)
+                }
+
+                webView.onContentReady {
                     onLoadPage()
                 }
             }
@@ -274,6 +275,44 @@ internal class R2EpubPageFragment : Fragment() {
         }
 
         return containerView
+    }
+
+    private var isPageFinished = false
+    private val pendingPageFinished = mutableListOf<() -> Unit>()
+
+    /**
+     * Will run the given [action] when the content of the [WebView] is loaded.
+     */
+    fun whenPageFinished(action: () -> Unit) {
+        if (isPageFinished) {
+            action()
+        } else {
+            pendingPageFinished.add(action)
+        }
+    }
+
+    private fun onPageFinished() {
+        isPageFinished = true
+        pendingPageFinished.forEach { it() }
+        pendingPageFinished.clear()
+    }
+
+    /**
+     * Will run the given [action] when the content of the [WebView] is fully laid out.
+     */
+    private fun WebView.onContentReady(action: () -> Unit) {
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.VISUAL_STATE_CALLBACK)) {
+            WebViewCompat.postVisualStateCallback(this, 0) {
+                action()
+            }
+        } else {
+            // On older devices, there's no reliable way to guarantee the page is fully laid out.
+            // As a workaround, we run a dummy JavaScript, then wait for a short delay before
+            // assuming it's ready.
+            evaluateJavascript("true") {
+                postDelayed(500, action)
+            }
+        }
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -393,7 +432,9 @@ internal class R2EpubPageFragment : Fragment() {
                     }
                     .also { pendingLocator = null }
 
-                webView.listener?.onPageLoaded()
+                link?.let {
+                    webView.listener?.onPageLoaded(webView, it)
+                }
             }
         }
     }
@@ -428,11 +469,12 @@ internal class R2EpubPageFragment : Fragment() {
         if(BuildConfig.DEBUG) return // TODO: run below if above scroll has failed(computing node position also scrolls)
 
         val text = locator.text
-        if (text.highlight != null) {
-            if (webView.scrollToText(text)) {
-                return
-            }
-        }
+
+//        if (text.highlight != null) {
+//            if (webView.scrollToText(text)) {
+//                return
+//            }
+//        }
 
         val htmlId = locator.locations.htmlId
         if (htmlId != null && webView.scrollToId(htmlId)) {
@@ -460,6 +502,18 @@ internal class R2EpubPageFragment : Fragment() {
                 item -= 1
             }
             webView.setCurrentItem(item, false)
+        }
+    }
+
+    fun runJavaScript(script: String, callback: ((String) -> Unit)? = null) {
+        whenPageFinished {
+            requireNotNull(webView).runJavaScript(script, callback)
+        }
+    }
+
+    suspend fun runJavaScriptSuspend(javascript: String): String = suspendCoroutine { cont ->
+        runJavaScript(javascript) { result ->
+            cont.resume(result)
         }
     }
 

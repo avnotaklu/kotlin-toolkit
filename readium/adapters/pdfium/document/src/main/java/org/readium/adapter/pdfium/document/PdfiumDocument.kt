@@ -4,6 +4,8 @@
  * available in the top-level LICENSE file of the project.
  */
 
+@file:OptIn(InternalReadiumApi::class)
+
 package org.readium.adapter.pdfium.document
 
 import android.content.Context
@@ -17,6 +19,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.readium.r2.shared.InternalReadiumApi
 import org.readium.r2.shared.extensions.md5
+import org.readium.r2.shared.extensions.tryOrLog
 import org.readium.r2.shared.extensions.tryOrNull
 import org.readium.r2.shared.util.Try
 import org.readium.r2.shared.util.data.ReadError
@@ -69,7 +72,11 @@ public class PdfiumDocument(
         core.getTableOfContents(document).map { it.toOutlineNode() }
     }
 
-    override suspend fun close() {}
+    override fun close() {
+        tryOrLog {
+            core.closeDocument(document)
+        }
+    }
 
     public companion object
 }

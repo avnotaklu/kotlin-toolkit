@@ -7,6 +7,8 @@
  * LICENSE file present in the project repository where this source code is maintained.
  */
 
+@file:OptIn(InternalReadiumApi::class)
+
 package org.readium.r2.shared.publication
 
 import android.os.Parcelable
@@ -14,6 +16,7 @@ import kotlinx.parcelize.IgnoredOnParcel
 import kotlinx.parcelize.Parcelize
 import org.json.JSONArray
 import org.json.JSONObject
+import org.readium.r2.shared.InternalReadiumApi
 import org.readium.r2.shared.JSONable
 import org.readium.r2.shared.extensions.optNullableString
 import org.readium.r2.shared.extensions.optPositiveDouble
@@ -258,13 +261,13 @@ public data class Link(
  * Returns the first [Link] with the given [href], or null if not found.
  */
 public fun List<Link>.indexOfFirstWithHref(href: Url): Int? =
-    indexOfFirst { it.url() == href }
+    indexOfFirst { it.url().isEquivalent(href) }
         .takeUnless { it == -1 }
 
 /**
  * Finds the first link matching the given HREF.
  */
-public fun List<Link>.firstWithHref(href: Url): Link? = firstOrNull { it.url() == href }
+public fun List<Link>.firstWithHref(href: Url): Link? = firstOrNull { it.url().isEquivalent(href) }
 
 /**
  * Finds the first link with the given relation.

@@ -4,6 +4,8 @@
  * available in the top-level LICENSE file of the project.
  */
 
+@file:OptIn(InternalReadiumApi::class)
+
 package org.readium.navigator.media.audio
 
 import androidx.media3.common.Player
@@ -21,6 +23,7 @@ import org.readium.r2.navigator.extensions.time
 import org.readium.r2.navigator.preferences.Configurable
 import org.readium.r2.shared.DelicateReadiumApi
 import org.readium.r2.shared.ExperimentalReadiumApi
+import org.readium.r2.shared.InternalReadiumApi
 import org.readium.r2.shared.extensions.mapStateIn
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
@@ -64,15 +67,19 @@ public class AudioNavigator<S : Configurable.Settings, P : Configurable.Preferen
         override val buffered: Duration?
     ) : TimeBasedMediaNavigator.Playback
 
-    public sealed class State {
+    public sealed interface State {
 
-        public object Ready : MediaNavigator.State.Ready
+        public data object Ready :
+            State, MediaNavigator.State.Ready
 
-        public object Ended : MediaNavigator.State.Ended
+        public data object Ended :
+            State, MediaNavigator.State.Ended
 
-        public object Buffering : MediaNavigator.State.Buffering
+        public data object Buffering :
+            State, MediaNavigator.State.Buffering
 
-        public data class Failure<E : AudioEngine.Error> (val error: E) : MediaNavigator.State.Failure
+        public data class Failure<E : AudioEngine.Error> (val error: E) :
+            State, MediaNavigator.State.Failure
     }
 
     private val coroutineScope: CoroutineScope =
@@ -88,28 +95,38 @@ public class AudioNavigator<S : Configurable.Settings, P : Configurable.Preferen
                 .mapNotNull { it.duration }
                 .takeIf { it.size == readingOrder.items.size }
                 ?.sum()
+
+            val coercedOffset =
+                playback.coerceOffset(currentItem.duration)
+
             val totalProgression =
                 if (itemStartPosition == null) {
                     null
                 } else {
-                    readingOrder.duration?.let { (itemStartPosition + playback.offset) / it }
+                    readingOrder.duration?.let { (itemStartPosition + coercedOffset) / it }
                 }
 
             val locator = requireNotNull(publication.locatorFromLink(link))
             locator.copyWithLocations(
-                fragments = listOf("t=${playback.offset.inWholeSeconds}"),
-                progression = item.duration?.let { playback.offset / it },
+                fragments = listOf("t=${coercedOffset.inWholeSeconds}"),
+                progression = item.duration?.let { coercedOffset / it },
                 totalProgression = totalProgression
             )
         }
 
     override val playback: StateFlow<Playback> =
         audioEngine.playback.mapStateIn(coroutineScope) { playback ->
+            val itemDuration =
+                readingOrder.items[playback.index].duration
+
+            val coercedOffset =
+                playback.coerceOffset(itemDuration)
+
             Playback(
-                playback.state.toState(),
+                playback.state.toState() as MediaNavigator.State,
                 playback.playWhenReady,
                 playback.index,
-                playback.offset,
+                coercedOffset,
                 playback.buffered
             )
         }
@@ -117,7 +134,8 @@ public class AudioNavigator<S : Configurable.Settings, P : Configurable.Preferen
     override val location: StateFlow<Location> =
         audioEngine.playback.mapStateIn(coroutineScope) {
             val currentItem = readingOrder.items[it.index]
-            Location(currentItem.href, it.offset)
+            val coercedOffset = it.coerceOffset(currentItem.duration)
+            Location(currentItem.href, coercedOffset)
         }
 
     override fun play() {
@@ -151,7 +169,7 @@ public class AudioNavigator<S : Configurable.Settings, P : Configurable.Preferen
     override fun asMedia3Player(): Player =
         audioEngine.asPlayer()
 
-    override fun go(locator: Locator, animated: Boolean, completion: () -> Unit): Boolean {
+    override fun go(locator: Locator, animated: Boolean): Boolean {
         @Suppress("NAME_SHADOWING")
         val locator = publication.normalizeLocator(locator)
         val itemIndex = readingOrder.items.indexOfFirst { it.href == locator.href }
@@ -163,16 +181,23 @@ public class AudioNavigator<S : Configurable.Settings, P : Configurable.Preferen
         return true
     }
 
-    override fun go(link: Link, animated: Boolean, completion: () -> Unit): Boolean {
+    override fun go(link: Link, animated: Boolean): Boolean {
         val locator = publication.locatorFromLink(link) ?: return false
-        return go(locator, animated, completion)
+        return go(locator, animated)
     }
 
-    private fun AudioEngine.State.toState(): MediaNavigator.State =
+    private fun AudioEngine.State.toState(): State =
         when (this) {
             is AudioEngine.State.Ready -> State.Ready
             is AudioEngine.State.Ended -> State.Ended
             is AudioEngine.State.Buffering -> State.Buffering
             is AudioEngine.State.Failure -> State.Failure(error)
+        }
+
+    private fun AudioEngine.Playback.coerceOffset(duration: Duration?): Duration =
+        if (duration == null) {
+            offset
+        } else {
+            offset.coerceAtMost(duration)
         }
 }

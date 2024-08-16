@@ -26,10 +26,11 @@ import kotlin.reflect.KMutableProperty0
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
-import org.readium.r2.navigator.ExperimentalAudiobook
 import org.readium.r2.navigator.extensions.let
 import org.readium.r2.navigator.extensions.splitAt
 import org.readium.r2.navigator.media.extensions.publicationId
+import org.readium.r2.shared.DelicateReadiumApi
+import org.readium.r2.shared.InternalReadiumApi
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.publication.Publication
@@ -47,9 +48,11 @@ import timber.log.Timber
  *
  * See https://developer.android.com/guide/topics/media-apps/audio-app/building-a-mediabrowserservice
  */
-@ExperimentalAudiobook
 @OptIn(ExperimentalCoroutinesApi::class)
-@Deprecated("Use the new AudioNavigator from the readium-navigator-media-audio module.")
+@Deprecated(
+    "Use the new AudioNavigator from the readium-navigator-media-audio module. This class will be removed in a future 3.x release."
+)
+@InternalReadiumApi
 public open class MediaService : MediaBrowserServiceCompat(), CoroutineScope by MainScope() {
 
     /**
@@ -139,6 +142,7 @@ public open class MediaService : MediaBrowserServiceCompat(), CoroutineScope by 
     private var notificationId: Int? = null
     private var notification: Notification? = null
 
+    @OptIn(DelicateReadiumApi::class)
     private val mediaPlayerListener = object : MediaPlayer.Listener {
 
         /**
@@ -166,7 +170,7 @@ public open class MediaService : MediaBrowserServiceCompat(), CoroutineScope by 
                     ?.let { navigator.publication.linkWithHref(it) }
                     ?.let { navigator.publication.locatorFromLink(it) }
 
-            if (locator != null && href != null && locator.href != href) {
+            if (locator != null && href != null && locator.href.isEquivalent(href)) {
                 Timber.e(
                     "Ambiguous playback location provided. HREF `$href` doesn't match locator $locator."
                 )

@@ -4,6 +4,8 @@
  * available in the top-level LICENSE file of the project.
  */
 
+@file:OptIn(InternalReadiumApi::class)
+
 package org.readium.r2.navigator.epub
 
 import android.content.SharedPreferences
@@ -45,7 +47,6 @@ import org.json.JSONObject
 import org.readium.r2.navigator.DecorableNavigator
 import org.readium.r2.navigator.Decoration
 import org.readium.r2.navigator.DecorationId
-import org.readium.r2.navigator.ExperimentalDecorator
 import org.readium.r2.navigator.HyperlinkNavigator
 import org.readium.r2.navigator.NavigatorFragment
 import org.readium.r2.navigator.OverflowableNavigator
@@ -81,6 +82,7 @@ import org.readium.r2.navigator.preferences.ReadingProgression
 import org.readium.r2.navigator.util.createFragmentFactory
 import org.readium.r2.shared.DelicateReadiumApi
 import org.readium.r2.shared.ExperimentalReadiumApi
+import org.readium.r2.shared.InternalReadiumApi
 import org.readium.r2.shared.extensions.tryOrLog
 import org.readium.r2.shared.publication.Href
 import org.readium.r2.shared.publication.Link
@@ -112,7 +114,7 @@ public typealias JavascriptInterfaceFactory = (resource: Link) -> Any?
  *
  * To use this [Fragment], create a factory with `EpubNavigatorFragment.createFactory()`.
  */
-@OptIn(ExperimentalDecorator::class, ExperimentalReadiumApi::class, DelicateReadiumApi::class)
+@OptIn(ExperimentalReadiumApi::class, DelicateReadiumApi::class)
 public class EpubNavigatorFragment internal constructor(
     publication: Publication,
     private val initialLocator: Locator?,
@@ -269,6 +271,19 @@ public class EpubNavigatorFragment internal constructor(
 
     public interface Listener : OverflowableNavigator.Listener, HyperlinkNavigator.Listener
 
+    private sealed class State {
+        /** The navigator just started and didn't load any resource yet. */
+        data object Initializing : State()
+
+        /** The navigator is loading the first resource at `initialResourceHref`. */
+        data class Loading(val initialResourceHref: Url) : State()
+
+        /** The navigator is fully initialized and ready for action. */
+        data object Ready : State()
+    }
+
+    private var state: State = State.Initializing
+
     // Configurable
 
     override val settings: StateFlow<EpubSettings> get() = viewModel.settings
@@ -285,8 +300,7 @@ public class EpubNavigatorFragment internal constructor(
     public suspend fun evaluateJavascript(script: String): String? {
         val page = currentReflowablePageFragment ?: return null
         page.awaitLoaded()
-        val webView = page.webView ?: return null
-        return webView.runJavaScriptSuspend(script)
+        return page.runJavaScriptSuspend(script)
     }
 
     private val viewModel: EpubNavigatorViewModel by viewModels {
@@ -596,9 +610,13 @@ public class EpubNavigatorFragment internal constructor(
     }
 
     @OptIn(DelicateReadiumApi::class)
-    override fun go(locator: Locator, animated: Boolean, completion: () -> Unit): Boolean {
+    override fun go(locator: Locator, animated: Boolean): Boolean {
         @Suppress("NAME_SHADOWING")
         val locator = publication.normalizeLocator(locator)
+
+        if (state == State.Initializing) {
+            state = State.Loading(locator.href)
+        }
 
         listener?.onJumpToLocator(locator)
 
@@ -608,7 +626,7 @@ public class EpubNavigatorFragment internal constructor(
             val page = resources.withIndex().firstOrNull { (_, res) ->
                 when (res) {
                     is PageResource.EpubReflowable ->
-                        res.link.url() == href
+                        res.link.url().isEquivalent(href)
                     is PageResource.EpubFxl ->
                         res.leftUrl?.toString()?.endsWith(href.toString()) == true || res.rightUrl?.toString()?.endsWith(
                             href.toString()
@@ -641,9 +659,9 @@ public class EpubNavigatorFragment internal constructor(
         return true
     }
 
-    override fun go(link: Link, animated: Boolean, completion: () -> Unit): Boolean {
+    override fun go(link: Link, animated: Boolean): Boolean {
         val locator = publication.locatorFromLink(link) ?: return false
-        return go(locator, animated, completion)
+        return go(locator, animated)
     }
 
     private fun run(commands: List<RunScriptCommand>) {
@@ -653,17 +671,17 @@ public class EpubNavigatorFragment internal constructor(
     private fun run(command: RunScriptCommand) {
         when (command.scope) {
             RunScriptCommand.Scope.CurrentResource -> {
-                currentReflowablePageFragment?.webView
+                currentReflowablePageFragment
                     ?.runJavaScript(command.script)
             }
             RunScriptCommand.Scope.LoadedResources -> {
                 r2PagerAdapter?.mFragments?.forEach { _, fragment ->
-                    (fragment as? R2EpubPageFragment)?.webView
+                    (fragment as? R2EpubPageFragment)
                         ?.runJavaScript(command.script)
                 }
             }
             is RunScriptCommand.Scope.Resource -> {
-                loadedFragmentForHref(command.scope.href)?.webView
+                loadedFragmentForHref(command.scope.href)
                     ?.runJavaScript(command.script)
             }
             is RunScriptCommand.Scope.WebView -> {
@@ -701,9 +719,9 @@ public class EpubNavigatorFragment internal constructor(
     // SelectableNavigator
 
     override suspend fun currentSelection(): Selection? {
-        val webView = currentReflowablePageFragment?.webView ?: return null
+        val fragment = currentReflowablePageFragment ?: return null
         val json =
-            webView.runJavaScriptSuspend("readium.getCurrentSelection();")
+            fragment.runJavaScriptSuspend("readium.getCurrentSelection();")
                 .takeIf { it != "null" }
                 ?.let { tryOrLog { JSONObject(it) } }
                 ?: return null
@@ -785,12 +803,21 @@ public class EpubNavigatorFragment internal constructor(
         override val readingProgression: ReadingProgression
             get() = viewModel.readingProgression
 
-        override fun onResourceLoaded(link: Link?, webView: R2BasicWebView, url: String?) {
-            run(viewModel.onResourceLoaded(link, webView))
+        override fun onResourceLoaded(webView: R2BasicWebView, link: Link) {
+            run(viewModel.onResourceLoaded(webView, link))
         }
 
-        override fun onPageLoaded() {
+        override fun onPageLoaded(webView: R2BasicWebView, link: Link) {
             paginationListener?.onPageLoaded()
+
+            val href = link.url()
+            if (state is State.Initializing || (state as? State.Loading)?.initialResourceHref?.isEquivalent(
+                    href
+                ) == true
+            ) {
+                state = State.Ready
+            }
+
             notifyCurrentLocation()
         }
 
@@ -872,9 +899,9 @@ public class EpubNavigatorFragment internal constructor(
                 ?.let { publication.get(it) }
     }
 
-    override fun goForward(animated: Boolean, completion: () -> Unit): Boolean {
+    override fun goForward(animated: Boolean): Boolean {
         if (publication.metadata.presentation.layout == EpubLayout.FIXED) {
-            return goToNextResource(jump = false, animated = animated, completion)
+            return goToNextResource(jump = false, animated = animated)
         }
 
         val webView = currentReflowablePageFragment?.webView ?: return false
@@ -886,13 +913,12 @@ public class EpubNavigatorFragment internal constructor(
             ReadingProgression.RTL ->
                 webView.scrollLeft(animated)
         }
-        lifecycleScope.launch { completion() }
         return true
     }
 
-    override fun goBackward(animated: Boolean, completion: () -> Unit): Boolean {
+    override fun goBackward(animated: Boolean): Boolean {
         if (publication.metadata.presentation.layout == EpubLayout.FIXED) {
-            return goToPreviousResource(jump = false, animated = animated, completion)
+            return goToPreviousResource(jump = false, animated = animated)
         }
 
         val webView = currentReflowablePageFragment?.webView ?: return false
@@ -904,11 +930,10 @@ public class EpubNavigatorFragment internal constructor(
             ReadingProgression.RTL ->
                 webView.scrollRight(animated)
         }
-        lifecycleScope.launch { completion() }
         return true
     }
 
-    private fun goToNextResource(jump: Boolean, animated: Boolean, completion: () -> Unit = {}): Boolean {
+    private fun goToNextResource(jump: Boolean, animated: Boolean): Boolean {
         val adapter = resourcePager.adapter ?: return false
         if (resourcePager.currentItem >= adapter.count - 1) {
             return false
@@ -928,11 +953,10 @@ public class EpubNavigatorFragment internal constructor(
             }
         }
 
-        viewLifecycleOwner.lifecycleScope.launch { completion() }
         return true
     }
 
-    private fun goToPreviousResource(jump: Boolean, animated: Boolean, completion: () -> Unit = {}): Boolean {
+    private fun goToPreviousResource(jump: Boolean, animated: Boolean): Boolean {
         if (resourcePager.currentItem <= 0) {
             return false
         }
@@ -951,7 +975,6 @@ public class EpubNavigatorFragment internal constructor(
             }
         }
 
-        viewLifecycleOwner.lifecycleScope.launch { completion() }
         return true
     }
 
@@ -1058,7 +1081,9 @@ public class EpubNavigatorFragment internal constructor(
         debounceLocationNotificationJob = viewLifecycleOwner.lifecycleScope.launch {
             delay(100L)
 
-            if (currentReflowablePageFragment?.isLoaded?.value == false) {
+            // We don't want to notify the current location if the navigator is still loading a
+            // locator, to avoid notifying intermediate locations.
+            if (currentReflowablePageFragment?.isLoaded?.value == false || state != State.Ready) {
                 return@launch
             }
 

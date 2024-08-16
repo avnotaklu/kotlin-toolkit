@@ -4,12 +4,15 @@
  * available in the top-level LICENSE file of the project.
  */
 
+@file:OptIn(InternalReadiumApi::class)
+
 package org.readium.r2.navigator.epub
 
 import org.readium.r2.navigator.epub.css.Layout
 import org.readium.r2.navigator.extensions.format
 import org.readium.r2.navigator.preferences.*
 import org.readium.r2.shared.ExperimentalReadiumApi
+import org.readium.r2.shared.InternalReadiumApi
 import org.readium.r2.shared.publication.Metadata
 import org.readium.r2.shared.publication.epub.EpubLayout
 import org.readium.r2.shared.util.Language
@@ -329,7 +332,7 @@ public class EpubPreferencesEditor internal constructor(
         PreferenceDelegate(
             getValue = { preferences.scroll },
             getEffectiveValue = { state.settings.scroll },
-            getIsEffective = { layout == EpubLayout.REFLOWABLE },
+            getIsEffective = { layout == EpubLayout.REFLOWABLE && !state.settings.verticalText },
             updateValue = { value -> updateValues { it.copy(scroll = value) } }
         )
 

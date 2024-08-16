@@ -16,7 +16,7 @@ import {
   scrollToId,
   scrollToPosition,
   scrollToStart,
-  scrollToText,
+  scrollToLocator,
   setProperty,
   setCSSProperties,
 } from "./utils";
@@ -30,7 +30,7 @@ window.readium = {
   // utils
   scrollToId: scrollToId,
   scrollToPosition: scrollToPosition,
-  scrollToText: scrollToText,
+  scrollToLocator: scrollToLocator,
   scrollLeft: scrollLeft,
   scrollRight: scrollRight,
   scrollToStart: scrollToStart,

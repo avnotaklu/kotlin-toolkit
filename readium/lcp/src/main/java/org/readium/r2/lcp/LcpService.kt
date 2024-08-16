@@ -28,6 +28,7 @@ import org.readium.r2.shared.publication.protection.ContentProtection
 import org.readium.r2.shared.util.Try
 import org.readium.r2.shared.util.asset.Asset
 import org.readium.r2.shared.util.asset.AssetRetriever
+import org.readium.r2.shared.util.asset.ContainerAsset
 import org.readium.r2.shared.util.format.Format
 
 /**
@@ -49,6 +50,8 @@ public interface LcpService {
     /**
      * Acquires a protected publication from a standalone LCPL's bytes.
      *
+     * License will be injected into the publication archive without explicitly calling
+     * [injectLicenseDocument].
      * You can cancel the on-going acquisition by cancelling its parent coroutine context.
      *
      * @param onProgress Callback to follow the acquisition progress from 0.0 to 1.0.
@@ -61,6 +64,8 @@ public interface LcpService {
     /**
      * Acquires a protected publication from a standalone LCPL file.
      *
+     * License will be injected into the publication archive without explicitly calling
+     * [injectLicenseDocument].
      * You can cancel the on-going acquisition by cancelling its parent coroutine context.
      *
      * @param onProgress Callback to follow the acquisition progress from 0.0 to 1.0.
@@ -115,6 +120,23 @@ public interface LcpService {
     ): Try<LcpLicense, LcpError>
 
     /**
+     * Retrieves the license document from a LCP-protected publication asset.
+     */
+    public suspend fun retrieveLicenseDocument(
+        asset: ContainerAsset
+    ): Try<LicenseDocument, LcpError>
+
+    /**
+     * Injects a [licenseDocument] into the given [publicationFile] package.
+     *
+     * This is useful if you downloaded the publication yourself instead of using [acquirePublication].
+     */
+    public suspend fun injectLicenseDocument(
+        licenseDocument: LicenseDocument,
+        publicationFile: File
+    ): Try<Unit, LcpError>
+
+    /**
      * Creates a [ContentProtection] instance which can be used with a Streamer to unlock
      * LCP protected publications.
      *
@@ -152,10 +174,15 @@ public interface LcpService {
 
         /**
          * LCP service factory.
+         *
+         * @param deviceName Device name used when registering a license to an LSD server.
+         * If not provided, the device name will be generated from the device's manufacturer and
+         * model.
          */
         public operator fun invoke(
             context: Context,
-            assetRetriever: AssetRetriever
+            assetRetriever: AssetRetriever,
+            deviceName: String? = null
         ): LcpService? {
             if (!LcpClient.isAvailable()) {
                 return null
@@ -167,6 +194,7 @@ public interface LcpService {
             val licenseRepository = LicensesRepository(db)
             val network = NetworkService()
             val device = DeviceService(
+                deviceName = deviceName,
                 repository = deviceRepository,
                 network = network,
                 context = context
