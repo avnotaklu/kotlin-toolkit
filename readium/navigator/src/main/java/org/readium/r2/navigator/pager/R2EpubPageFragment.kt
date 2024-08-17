@@ -13,6 +13,7 @@ package org.readium.r2.navigator.pager
 
 import android.annotation.SuppressLint
 import android.graphics.PointF
+import android.net.Uri
 import android.os.Bundle
 import android.util.DisplayMetrics
 import android.view.*
@@ -21,6 +22,7 @@ import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
+import androidx.core.net.toUri
 import androidx.core.os.BundleCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.postDelayed
@@ -34,11 +36,17 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.webkit.WebViewClientCompat
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
+import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
+import java.util.zip.ZipInputStream
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 import kotlin.math.roundToInt
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.readium.r2.navigator.R
 import org.readium.r2.navigator.R2BasicWebView
 import org.readium.r2.navigator.R2WebView
@@ -155,10 +163,13 @@ internal class R2EpubPageFragment : Fragment() {
         val webView = binding.webView
         this.webView = webView
 
+        // modified_avnotaklu
         webView.activity = activity as FragmentActivity
         webView.fragment = this
+
         webView.propsGetter = activity as EpubPropsGetter
 
+        // modified_avnotaklu //
 
         webView.visibility = View.INVISIBLE
         navigator?.webViewListener?.let { listener ->
@@ -433,6 +444,7 @@ internal class R2EpubPageFragment : Fragment() {
                     .also { pendingLocator = null }
 
                 link?.let {
+
                     webView.listener?.onPageLoaded(webView, it)
                 }
             }
@@ -470,11 +482,11 @@ internal class R2EpubPageFragment : Fragment() {
 
         val text = locator.text
 
-//        if (text.highlight != null) {
-//            if (webView.scrollToText(text)) {
-//                return
-//            }
-//        }
+        if (text.highlight != null) {
+            if (webView.scrollToLocator(locator)) {
+                return
+            }
+        }
 
         val htmlId = locator.locations.htmlId
         if (htmlId != null && webView.scrollToId(htmlId)) {

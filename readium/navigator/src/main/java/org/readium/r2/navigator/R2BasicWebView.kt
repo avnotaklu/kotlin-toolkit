@@ -12,23 +12,18 @@ import android.content.Context
 import android.graphics.PointF
 import android.graphics.Rect
 import android.graphics.RectF
+import android.net.Uri
 import android.os.Build
-import android.text.Html
 import android.util.AttributeSet
 import android.view.*
 import android.webkit.URLUtil
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
-import android.widget.ImageButton
-import android.widget.ListPopupWindow
-import android.widget.PopupWindow
-import android.widget.TextView
 import androidx.annotation.RequiresApi
+import androidx.core.net.toFile
 import androidx.fragment.app.FragmentActivity
 import androidx.webkit.WebViewAssetLoader
-import com.google.common.util.concurrent.ListenableFuture
-import java.io.File
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 import kotlinx.coroutines.CompletableDeferred
@@ -136,6 +131,7 @@ internal open class R2BasicWebView(context: Context, attrs: AttributeSet) : WebV
     // modified_avnotaklu
     lateinit var activity: FragmentActivity
     lateinit var fragment: R2EpubPageFragment
+    lateinit var bookUnarchivedPath: Uri
     lateinit var propsGetter: EpubPropsGetter
 
     @Volatile
@@ -345,10 +341,17 @@ internal open class R2BasicWebView(context: Context, attrs: AttributeSet) : WebV
         return rectToDOMRectJson(rect)
     }
 
+    // Using archive path instead
+//    @android.webkit.JavascriptInterface
+//    fun getFilepath(): String {
+//        return propsGetter.getFilePath().split("/").last()
+//    }
+
     @android.webkit.JavascriptInterface
-    fun getFilepath(): String {
-        return propsGetter.getFilePath().split("/").last()
+    fun getBookName(): String {
+        return propsGetter.getBookName()
     }
+
 
     fun rectToDOMRectJson(rect: Rect): String? {
         val jsonObject = JSONObject()
@@ -691,7 +694,12 @@ internal open class R2BasicWebView(context: Context, attrs: AttributeSet) : WebV
                 "/books/",
                 WebViewAssetLoader.InternalStoragePathHandler(
                     activity,
-                    File((activity as EpubPropsGetter).getFilePath()).parentFile!!
+//                    File((activity as EpubPropsGetter).getFilePath()).parentFile!!
+//                    File.fromUri()
+//                    bookUnarchivedPath.toFile()
+
+                    (activity as EpubPropsGetter).getReaderResourcePath().toFile()
+//                    (activity as EpubPropsGetter).getReaderResourcePath().toFile().parentFile!!
                 )
             )
             .build();

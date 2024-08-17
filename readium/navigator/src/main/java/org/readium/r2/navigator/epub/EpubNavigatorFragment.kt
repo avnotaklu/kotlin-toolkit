@@ -729,6 +729,7 @@ public class EpubNavigatorFragment internal constructor(
         val rect = json.optRectF("rect")
             ?.run { adjustedToViewport() }
 
+        val webView = currentReflowablePageFragment?.webView ?: throw Exception("No Webview found for the fragment")
         // modified_avnotaklu
         return suspendCoroutine { cont ->
                 webView.runJavaScript(

@@ -14,7 +14,10 @@ plugins {
 android {
     compileSdk = 34
     defaultConfig {
-        minSdk = 21
+        // minSdk = 21
+        minSdk = 28
+        //        minSdk < 26 Requires desugaring or something
+
         targetSdk = 34
 
         applicationId = "org.readium.r2reader"
