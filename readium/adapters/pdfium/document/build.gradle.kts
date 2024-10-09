@@ -17,6 +17,7 @@ dependencies {
 
     implementation(libs.androidx.core)
     implementation(libs.pdfium)
+    // implementation("com.github.DImuthuUpe:AndroidPdfViewer:3.0.0-beta.1")
     implementation(libs.timber)
     implementation(libs.kotlinx.coroutines.android)
 
